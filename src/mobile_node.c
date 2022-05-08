@@ -33,6 +33,7 @@ int main(int argc, char *argv[]) {
 }
 
 void *mobile_node(char *request_number, char *interval_time, char *instruction_number, char *max_execution_time) {
+    
     for (int i = 0; i < request_number; ++i) {
         int id = i;
         char *task = "";
