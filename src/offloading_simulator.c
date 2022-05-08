@@ -2,6 +2,7 @@
 // Miguel Ângelo Graça Meneses, 2020221791
 
 #include "declarations.h"
+#include <errno.h>
 
 
 int main(int argc, char *argv[]) {
@@ -31,7 +32,7 @@ int main(int argc, char *argv[]) {
 
     // ---------- Mutex Semaphore ---------- //
 
-    mutex_sem = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+    mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
 
 
     // ---------- Leitura config file ---------- //

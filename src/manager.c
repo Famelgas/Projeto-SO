@@ -24,9 +24,7 @@ void Task_Manager(long QUEUE_POS, long EDGE_SERVER_NUMBER, char *edge_server[EDG
         perror("Error opening TASK_PIPE for reading");
         exit(0);
     }
-
-
-
+    
     for (int i = 0; i < QUEUE_POS; ++i) {
         stack[i] = NULL;
     }
@@ -117,4 +115,24 @@ static void *fastvCPU(void *instrucao) {
 void Monitor();
 
 
-void Maintenance_Manager();
+void Maintenance_Manager() {
+    pthread_mutex_lock(&mutex);
+
+    while (num_servers_down == EDGE_SERVER_NUMBER - 1) {
+        pthread_cond_signal(&servers_down);
+        pthread_cond_wait(&servers_up, &mutex);
+    }
+
+    int maintenance_time = rand() % 5 + 1;
+    
+
+    // alterar condição para verificar se as tarefas ja acabaram todas 
+    while (1) {
+        pthread_cond_wait(&maintenance_ready, &mutex);
+    }
+
+    sleep(maintenance_time);
+
+
+    pthread_mutex_unlock(&mutex);
+}

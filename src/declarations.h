@@ -25,6 +25,7 @@
 #include <time.h>
 
 
+
 // ---------- Defines ---------- //
 
 #define TASK_PIPE "TASK_PIPE"
@@ -37,10 +38,16 @@
 #define TSKMG_TO_EDSV 0
 #define EDSV_TO_TSKMG 1
 
+#define STOPPED 0
+#define NORMAL 1
+#define HIGH 2
+
+
 
 // ---------- Structs ---------- //
 
 typedef struct EdgeServer {
+    int performance;
     long processing_power_vCPU1;
     long next_task_time_vCPU1;
     char performance_edge_server1;
@@ -49,12 +56,17 @@ typedef struct EdgeServer {
     char performance_edge_server2;
 } EdgeServer;
 
-typedef struct MobileNode {
+typedef struct Task {
+    int task_id;
     long total_request_number;
     long interval_time;
     long request_instruction_number;
     long max_execution_time;
-} MobileNode;
+} Task;
+
+typedef struct Message {
+
+} Message;
 
 // ---------- Global Variables ---------- //
 
@@ -64,7 +76,7 @@ long EDGE_SERVER_NUMBER;
 
 EdgeServer *shared_var;
 
-
+int num_servers_down = 0;
 int shmid;
 int sem_id;
 sem_t *writing_sem;
@@ -78,7 +90,10 @@ char *log_file_name = "log_file.txt";
 FILE *log_file;
 FILE *config_file;
 
-pthread_mutex_t mutex_sem;
+pthread_mutex_t mutex;
+pthread_cond_t servers_down = PTHREAD_COND_INITIALIZER;
+pthread_cond_t servers_up = PTHREAD_COND_INITIALIZER;
+pthread_cond_t maintenance_ready = PTHREAD_COND_INITIALIZER;
 
 
 // ---------- Processes ---------- //

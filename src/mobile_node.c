@@ -5,7 +5,7 @@
 #include "declarations.h"
 
 int main(int argc, char *argv[]) {
-    MobileNode *mobile_node;
+    Task *task;
 
     // task_pipe write only
     if ((fd_task_pipe = open(TASK_PIPE, O_WRONLY)) < 0) {
@@ -21,12 +21,12 @@ int main(int argc, char *argv[]) {
     }
 
     char *ptr;
-    mobile_node->total_request_number = (strtol(argv[1],&ptr,10));
-    mobile_node->interval_time = (strtol(argv[2],&ptr,10));
-    mobile_node->request_instruction_number = (strtol(argv[3],&ptr,10));
-    mobile_node -> max_execution_time = (strtol(argv[4],&ptr,10));
+    task->total_request_number = (strtol(argv[1],&ptr,10));
+    task->interval_time = (strtol(argv[2],&ptr,10));
+    task->request_instruction_number = (strtol(argv[3],&ptr,10));
+    task -> max_execution_time = (strtol(argv[4],&ptr,10));
 
-    write(fd_task_pipe, &mobile_node, sizeof(MobileNode));
+    write(fd_task_pipe, &task, sizeof(Task));
 
 
     return 0;
