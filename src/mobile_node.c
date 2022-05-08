@@ -5,8 +5,6 @@
 #include "declarations.h"
 
 int main(int argc, char *argv[]) {
-    Task *task;
-
     // task_pipe write only
     if ((fd_task_pipe = open(TASK_PIPE, O_WRONLY)) < 0) {
         perror("Error openibng TASK_PIPE for writing");
@@ -20,14 +18,29 @@ int main(int argc, char *argv[]) {
         exit(-1);
     }
 
-    char *ptr;
-    task->total_request_number = (strtol(argv[1],&ptr,10));
-    task->interval_time = (strtol(argv[2],&ptr,10));
-    task->request_instruction_number = (strtol(argv[3],&ptr,10));
-    task -> max_execution_time = (strtol(argv[4],&ptr,10));
+    char *request_number = argv[1];
+    char *interval_time = argv[2];
+    char *instruction_number = argv[3];
+    char *max_execution_time = argv[4];
 
-    write(fd_task_pipe, &task, sizeof(Task));
+    if (fork() == 0) {
+        mobile_node(request_number, interval_time, instruction_number, max_execution_time);
+        exit(0);
+    }
 
 
     return 0;
+}
+
+void *mobile_node(char *request_number, char *interval_time, char *instruction_number, char *max_execution_time) {
+    for (int i = 0; i < request_number; ++i) {
+        int id = i;
+        char *task = "";
+        itoa(id, task, 10);
+        strcat(task, instruction_number);
+        strcat(task, max_execution_time);
+        write(fd_task_pipe, task, sizeof(task));
+    }
+
+    exit(0);
 }

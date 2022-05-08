@@ -24,7 +24,7 @@ void Task_Manager(long QUEUE_POS, long EDGE_SERVER_NUMBER, char *edge_server[EDG
         perror("Error opening TASK_PIPE for reading");
         exit(0);
     }
-    
+
     for (int i = 0; i < QUEUE_POS; ++i) {
         stack[i] = NULL;
     }
@@ -96,16 +96,24 @@ void Edge_Server(int fd, char *edge_server[3], EdgeServer *SHM) {
 }
 
 
-static void *slowvCPU(void *instrucao) {
+void *slowvCPU() {
     sem_wait(writing_sem);
+
+    while((shared_var->instruction_number * 1000) / (shared_var->processing_power_vCPU1 * 1000000)) {
+        continue;
+    }
     write_log("Slow vCPU");
     sem_post(writing_sem);
-    pthread_exit(&instrucao);
 }
 
 
-static void *fastvCPU(void *instrucao) {
+void *fastvCPU(void *instrucao) {
     sem_wait(writing_sem);
+
+    while((shared_var->instruction_number * 1000) / (shared_var->processing_power_vCPU2 * 1000000)) {
+        continue;
+    }
+
     write_log("Fast vCPU");
     sem_post(writing_sem);
     pthread_exit(&instrucao);

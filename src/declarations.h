@@ -47,22 +47,15 @@
 // ---------- Structs ---------- //
 
 typedef struct EdgeServer {
+    int fd_unnamed[2];
     int performance;
+    long instruction_number;
     long processing_power_vCPU1;
     long next_task_time_vCPU1;
-    char performance_edge_server1;
     long processing_power_vCPU2;
     long next_task_time_vCPU2;
-    char performance_edge_server2;
 } EdgeServer;
 
-typedef struct Task {
-    int task_id;
-    long total_request_number;
-    long interval_time;
-    long request_instruction_number;
-    long max_execution_time;
-} Task;
 
 typedef struct Message {
 
