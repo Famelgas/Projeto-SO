@@ -12,6 +12,16 @@ void Task_Manager(long QUEUE_POS, long EDGE_SERVER_NUMBER, char *edge_server[EDG
     int fd_unnamed[EDGE_SERVER_NUMBER][2];
     char string[BUFFER_LEN];
     char *SHM;
+    Task task;
+
+    task_queue = malloc(sizeof(Task) * QUEUE_POS);
+    for (size_t i = 0; i < sizeof(Task) * QUEUE_POS; i + sizeof(Task)) {
+        task_queue[i].task_id = -1;
+        task_queue[i].priority = -1;
+        task_queue[i].instruction_number = 0;
+        task_queue[i].max_execution_time = 1000000;
+    }
+
 
     if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0) == (EdgeServer *) - 1)) {
         write_log("Shmat error");
@@ -29,6 +39,36 @@ void Task_Manager(long QUEUE_POS, long EDGE_SERVER_NUMBER, char *edge_server[EDG
         stack[i] = NULL;
     }
 
+    char *str;
+    while (read(fd_task_pipe, &str, BUFFER_LEN)) {
+        if (str == NULL) {
+            write_log("Error reading from TASK_PIPE");
+        }
+        int t = 0;
+        char *str_task;
+        char *token = strtok(str, ";");
+        
+        while (token != NULL) {
+            str_task[t] = token;
+            token = strtok(str, ";");
+        }
+
+        task.task_id = str_task[0];
+        task.instruction_number = str_task[1];
+        task.max_execution_time = str_task[2];
+        
+        for (size_t i = 0; i < sizeof(Task) * QUEUE_POS; i + sizeof(Task)) {
+            if (task_queue[i].task_id == -1) {
+                task_queue[i] = task;
+            }
+        }
+        
+        str = "";
+    }
+
+
+
+    
     for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
         pipe(fd_unnamed[i]);
 
@@ -96,6 +136,33 @@ void Edge_Server(int fd, char *edge_server[3], EdgeServer *SHM) {
 }
 
 
+void Monitor();
+
+
+void Maintenance_Manager() {
+    pthread_mutex_lock(&mutex);
+
+    while (num_servers_down == EDGE_SERVER_NUMBER - 1) {
+        pthread_cond_signal(&servers_down);
+        pthread_cond_wait(&servers_up, &mutex);
+    }
+
+    int maintenance_time = rand() % 5 + 1;
+    
+
+    // alterar condição para verificar se as tarefas ja acabaram todas 
+    while (1) {
+        pthread_cond_wait(&maintenance_ready, &mutex);
+    }
+
+    sleep(maintenance_time);
+
+
+    pthread_mutex_unlock(&mutex);
+}
+
+
+
 void *slowvCPU() {
     sem_wait(writing_sem);
 
@@ -120,27 +187,74 @@ void *fastvCPU(void *instrucao) {
 }
 
 
-void Monitor();
+void *thread_scheduler() {
+    for (size_t i = 0; i < sizeof(Task) * QUEUE_POS; i + sizeof(Task)) {
+        if (task_queue[i].priority == 1) {
+            int b = 1;
+            for (size_t e = 0; e < EDGE_SERVER_NUMBER; e + sizeof(EdgeServer)) {
+                if (task_queue[i].max_execution_time > shared_var[e].next_task_time_vCPU1) {
+                    b = 0;
+                }
 
-
-void Maintenance_Manager() {
-    pthread_mutex_lock(&mutex);
-
-    while (num_servers_down == EDGE_SERVER_NUMBER - 1) {
-        pthread_cond_signal(&servers_down);
-        pthread_cond_wait(&servers_up, &mutex);
+                if (task_queue[i].max_execution_time > shared_var[e].next_task_time_vCPU2) {
+                    b = 0;
+                }
+            }
+            
+            if (b == 0) {
+                write_log("Task deleted");
+                task_queue[i].task_id = -1;
+                task_queue[i].priority = -1;
+                task_queue[i].instruction_number = 0;
+                task_queue[i].max_execution_time = 0;
+            }
+        }
     }
 
-    int maintenance_time = rand() % 5 + 1;
-    
 
-    // alterar condição para verificar se as tarefas ja acabaram todas 
-    while (1) {
-        pthread_cond_wait(&maintenance_ready, &mutex);
+
+
+    Task key;
+    size_t j;
+    for (size_t i = 0 + sizeof(Task); i < sizeof(Task) * QUEUE_POS; i + sizeof(Task)) {
+        key = task_queue[i];
+        j = i - sizeof(Task);
+
+        while (j >= 0 && task_queue[j].max_execution_time > key.max_execution_time) {
+            task_queue[j + sizeof(Task)] = task_queue[j];
+            j = j - sizeof(Task);
+        }
+        task_queue[j + sizeof(Task)] = key;
     }
 
-    sleep(maintenance_time);
+    int p = 0;
+    for (size_t i = 0; i < sizeof(Task) * QUEUE_POS; i + sizeof(Task)) {
+        task_queue[i].priority = p;
+    }
+}
 
 
-    pthread_mutex_unlock(&mutex);
+void *thread_dispatcher() {
+    for (size_t i = 0; i < sizeof(Task) * QUEUE_POS; i + sizeof(Task)) {
+        if (task_queue[i].priority == 1) {
+            int b = 1;
+            for (size_t e = 0; e < EDGE_SERVER_NUMBER; e + sizeof(EdgeServer)) {
+                if (task_queue[i].max_execution_time > shared_var[e].next_task_time_vCPU1) {
+                    b = 0;
+                }
+
+                if (task_queue[i].max_execution_time > shared_var[e].next_task_time_vCPU2) {
+                    b = 0;
+                }
+            }
+            
+            if (b == 0) {
+                write_log("Task deleted");
+                task_queue[i].task_id = -1;
+                task_queue[i].priority = -1;
+                task_queue[i].instruction_number = 0;
+                task_queue[i].max_execution_time = 0;
+            }
+        }
+    }
 }

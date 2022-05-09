@@ -56,6 +56,12 @@ typedef struct EdgeServer {
     long next_task_time_vCPU2;
 } EdgeServer;
 
+typedef struct Task {
+    int task_id;
+    int priority;
+    long instruction_number;
+    long max_execution_time;
+} Task;
 
 typedef struct Message {
 
@@ -67,7 +73,11 @@ long QUEUE_POS;
 long MAX_WAIT;
 long EDGE_SERVER_NUMBER;
 
+
 EdgeServer *shared_var;
+
+Task *task_queue;
+
 
 int num_servers_down = 0;
 int shmid;

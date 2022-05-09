@@ -38,7 +38,9 @@ void *mobile_node(char *request_number, char *interval_time, char *instruction_n
         int id = i;
         char *task = "";
         itoa(id, task, 10);
+        strcat(task, ";");
         strcat(task, instruction_number);
+        strcat(task, ";");
         strcat(task, max_execution_time);
         write(fd_task_pipe, task, sizeof(task));
     }
