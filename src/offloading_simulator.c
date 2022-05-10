@@ -6,7 +6,7 @@
 
 
 int main(int argc, char *argv[]) {
-
+    end_processes = 1;
     config_file_name = argv[1];
     // ---------- Named Semaphore ---------- //
 

@@ -47,6 +47,7 @@
 // ---------- Structs ---------- //
 
 typedef struct EdgeServer {
+    pthread_t slow_thread, fast_thread;
     int fd_unnamed[2];
     int performance;
     long instruction_number;
@@ -63,9 +64,14 @@ typedef struct Task {
     long max_execution_time;
 } Task;
 
-typedef struct Message {
+typedef struct MessageQueue {
+    char *string;
+    struct MessageQueue *next;
+    struct MessageQueue *previous;
+} MessageQueue;
 
-} Message;
+
+
 
 // ---------- Global Variables ---------- //
 
@@ -77,9 +83,10 @@ long EDGE_SERVER_NUMBER;
 EdgeServer *shared_var;
 
 Task *task_queue;
+MessageQueue *message_queue;
 
-
-int num_servers_down = 0;
+int end_processes;
+int num_servers_down;
 int shmid;
 int sem_id;
 sem_t *writing_sem;

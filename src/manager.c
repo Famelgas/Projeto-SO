@@ -7,132 +7,129 @@
 
 
 void Task_Manager(long QUEUE_POS, long EDGE_SERVER_NUMBER, char *edge_server[EDGE_SERVER_NUMBER][3]) {
-    char *stack[QUEUE_POS];
-    int fd;
-    int fd_unnamed[EDGE_SERVER_NUMBER][2];
-    char string[BUFFER_LEN];
-    char *SHM;
-    Task task;
+    while (end_processes == 1) {
+        char *stack[QUEUE_POS];
+        int fd;
+        int fd_unnamed[EDGE_SERVER_NUMBER][2];
+        char string[BUFFER_LEN];
+        char *SHM;
+        Task task;
 
-    task_queue = malloc(sizeof(Task) * QUEUE_POS);
-    for (size_t i = 0; i < sizeof(Task) * QUEUE_POS; i + sizeof(Task)) {
-        task_queue[i].task_id = -1;
-        task_queue[i].priority = -1;
-        task_queue[i].instruction_number = 0;
-        task_queue[i].max_execution_time = 1000000;
-    }
-
-
-    if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0) == (EdgeServer *) - 1)) {
-        write_log("Shmat error");
-        exit(1);
-    }
-
-
-    // task_pipe read only
-    if ((fd_task_pipe = open(TASK_PIPE, O_RDONLY)) < 0) {
-        perror("Error opening TASK_PIPE for reading");
-        exit(0);
-    }
-
-    for (int i = 0; i < QUEUE_POS; ++i) {
-        stack[i] = NULL;
-    }
-
-    char *str;
-    while (read(fd_task_pipe, &str, BUFFER_LEN)) {
-        if (str == NULL) {
-            write_log("Error reading from TASK_PIPE");
-        }
-        int t = 0;
-        char *str_task;
-        char *token = strtok(str, ";");
-        
-        while (token != NULL) {
-            str_task[t] = token;
-            token = strtok(str, ";");
-        }
-
-        task.task_id = str_task[0];
-        task.instruction_number = str_task[1];
-        task.max_execution_time = str_task[2];
-        
+        task_queue = malloc(sizeof(Task) * QUEUE_POS);
         for (size_t i = 0; i < sizeof(Task) * QUEUE_POS; i + sizeof(Task)) {
-            if (task_queue[i].task_id == -1) {
-                task_queue[i] = task;
+            task_queue[i].task_id = -1;
+            task_queue[i].priority = -1;
+            task_queue[i].instruction_number = 0;
+            task_queue[i].max_execution_time = 1000000;
+        }
+
+
+        if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0) == (EdgeServer *) - 1)) {
+            write_log("Shmat error");
+            exit(1);
+        }
+
+
+        // task_pipe read only
+        if ((fd_task_pipe = open(TASK_PIPE, O_RDONLY)) < 0) {
+            perror("Error opening TASK_PIPE for reading");
+            exit(0);
+        }
+
+        for (int i = 0; i < QUEUE_POS; ++i) {
+            stack[i] = NULL;
+        }
+
+        char *str;
+        while (read(fd_task_pipe, &str, BUFFER_LEN)) {
+            if (str == NULL) {
+                write_log("Error reading from TASK_PIPE");
             }
+            int t = 0;
+            char *str_task;
+            char *token = strtok(str, ";");
+            
+            while (token != NULL) {
+                str_task[t] = token;
+                token = strtok(str, ";");
+            }
+
+            task.task_id = str_task[0];
+            task.instruction_number = str_task[1];
+            task.max_execution_time = str_task[2];
+            
+            for (size_t i = 0; i < sizeof(Task) * QUEUE_POS; i + sizeof(Task)) {
+                if (task_queue[i].task_id == -1) {
+                    task_queue[i] = task;
+                }
+            }
+            
+            str = "";
         }
+
+
+
         
-        str = "";
+        for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
+            pipe(fd_unnamed[i]);
+
+            if ((fd = fork()) ==  0) {
+                dup2(fd_unnamed[i][1], fd);
+                close(fd_unnamed[i][0]);
+                close(fd_unnamed[i][1]);
+                execlp("ls", "ls", NULL);
+            }
+            else {
+                dup2(fd_unnamed[i][0], fd);
+                close(fd_unnamed[i][0]);
+                close(fd_unnamed[i][1]);
+                execlp("ls", "ls", NULL);
+            }
+            pid_t pid;
+
+            if ((pid = fork()) < 0) {
+                write_log("Fork error");
+            } 
+            if (pid == 0) {
+                Edge_Server(fd_unnamed[i][0], edge_server[i], shared_var);
+            }
+        
+        }
     }
-
-
-
-    
-    for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
-        pipe(fd_unnamed[i]);
-
-        if ((fd = fork()) ==  0) {
-            dup2(fd_unnamed[i][1], fd);
-            close(fd_unnamed[i][0]);
-            close(fd_unnamed[i][1]);
-            execlp("ls", "ls", NULL);
-        }
-        else {
-            dup2(fd_unnamed[i][0], fd);
-            close(fd_unnamed[i][0]);
-            close(fd_unnamed[i][1]);
-            execlp("ls", "ls", NULL);
-        }
-        pid_t pid;
-
-        if ((pid = fork()) < 0) {
-            write_log("Fork error");
-        } 
-        if (pid == 0) {
-            Edge_Server(fd_unnamed[i][0], edge_server[i], shared_var);
-        }
-    
-    }
-
 }
 
 
-void Edge_Server(int fd, char *edge_server[3], EdgeServer *SHM) {
-    int performance = 0;
-    char *edge_server_name;
-    long processing_power_vCPU1;
-    long processing_power_vCPU2;
-    char *ptr;
-    pthread_t slow_thr, fast_thr;
+void Edge_Server(int id) {
+    while (end_processes == 1) {
+        char *task;
+        char *list[3];
 
-    edge_server_name = edge_server[0];
-    processing_power_vCPU1 = strtol(edge_server[1], &ptr, 10);
-    processing_power_vCPU2 = strtol(edge_server[1], &ptr, 10);
-
-    SHM->processing_power_vCPU1 = processing_power_vCPU1;
-    SHM->processing_power_vCPU2 = processing_power_vCPU2;
-
-    char *string;
-    char *stringassist = "READY";
-    string = (char *) (edge_server_name + *stringassist);
-    write_log(string);
-    
-    while (read(fd, NULL, sizeof(NULL)) > 0) {
-        if (read(fd, NULL, sizeof(NULL)) > 0) {
-            pthread_create(&slow_thr, NULL, slowvCPU, NULL);
-            pthread_join(slow_thr, NULL);
+        if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0)) == (struct EdgeServer *) -1) {
+            writ_log_ecra("Shmat error!");
+            exit(1);
         }
-        if (read(fd, NULL, sizeof(NULL)) > 0) {
-            pthread_create(&fast_thr, NULL, fastvCPU, NULL);
-            pthread_join(fast_thr, NULL);
-        } else {
-            continue;
+
+        char *string;
+        char *stringassist = "READY";
+        string = (char *) (edge_server_name + *stringassist);
+        write_log(string);
+        
+        while (read(fd, NULL, sizeof(NULL)) > 0) {
+            if (read(fd, NULL, sizeof(NULL)) > 0) {
+                pthread_create(&slow_thr, NULL, slowvCPU, NULL);
+                pthread_join(slow_thr, NULL);
+            }
+            if (read(fd, NULL, sizeof(NULL)) > 0) {
+                pthread_create(&fast_thr, NULL, fastvCPU, NULL);
+                pthread_join(fast_thr, NULL);
+            } else {
+                continue;
+            }
         }
+
+
+        pthread_exit(NULL);
     }
-
-
-    pthread_exit(NULL);
 }
 
 
@@ -140,25 +137,34 @@ void Monitor();
 
 
 void Maintenance_Manager() {
-    pthread_mutex_lock(&mutex);
+    while (end_processes == 1) {
+        pthread_mutex_lock(&mutex);
+        if (message_queue == NULL) {
+            sprintf(message_queue->string, "%ld", rand() % EDGE_SERVER_NUMBER + 1);
+            message_queue->previous = message_queue;
+            message_queue = message_queue->next;
+        }
 
-    while (num_servers_down == EDGE_SERVER_NUMBER - 1) {
-        pthread_cond_signal(&servers_down);
-        pthread_cond_wait(&servers_up, &mutex);
+        else {
+            message_queue->string = "continue";
+            message_queue->previous = message_queue;
+            message_queue = message_queue->next;
+        }
+
+        
+        int maintenance_time = rand() % 5 + 1;
+
+        sleep(rand() % 5 + 1);
+        pthread_mutex_unlock(&mutex);
+        
+        int previous_performance = shared_var[server].performance;
+        shared_var[server].performance = 0;
+
+
+        shared_var[server].performance = previous_performance;
+
+        
     }
-
-    int maintenance_time = rand() % 5 + 1;
-    
-
-    // alterar condição para verificar se as tarefas ja acabaram todas 
-    while (1) {
-        pthread_cond_wait(&maintenance_ready, &mutex);
-    }
-
-    sleep(maintenance_time);
-
-
-    pthread_mutex_unlock(&mutex);
 }
 
 
@@ -192,6 +198,9 @@ void *thread_scheduler() {
         if (task_queue[i].priority == 1) {
             int b = 1;
             for (size_t e = 0; e < EDGE_SERVER_NUMBER; e + sizeof(EdgeServer)) {
+                if (shared_var->performance == STOPPED) {
+                    continue;
+                }
                 if (task_queue[i].max_execution_time > shared_var[e].next_task_time_vCPU1) {
                     b = 0;
                 }
