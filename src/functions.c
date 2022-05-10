@@ -40,6 +40,7 @@ void clean_resources() {
     fclose(config_file);
     fclose(log_file);
     free(shared_var);
+    free(task_queue);
     unlink(TASK_PIPE);
     sem_close(writing_sem);
 }

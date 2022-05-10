@@ -7,6 +7,15 @@
 
 
 void Task_Manager(long QUEUE_POS, long EDGE_SERVER_NUMBER, char *edge_server[EDGE_SERVER_NUMBER][3]) {
+    task_queue = malloc(sizeof(Task) * QUEUE_POS);
+    for (size_t i = 0; i < sizeof(Task) * QUEUE_POS; i + sizeof(Task)) {
+        task_queue[i].task_id = -1;
+        task_queue[i].priority = -1;
+        task_queue[i].instruction_number = 0;
+        task_queue[i].max_execution_time = 1000000;
+    }
+    
+    
     while (end_processes == 1) {
         char *stack[QUEUE_POS];
         int fd;
@@ -15,13 +24,6 @@ void Task_Manager(long QUEUE_POS, long EDGE_SERVER_NUMBER, char *edge_server[EDG
         char *SHM;
         Task task;
 
-        task_queue = malloc(sizeof(Task) * QUEUE_POS);
-        for (size_t i = 0; i < sizeof(Task) * QUEUE_POS; i + sizeof(Task)) {
-            task_queue[i].task_id = -1;
-            task_queue[i].priority = -1;
-            task_queue[i].instruction_number = 0;
-            task_queue[i].max_execution_time = 1000000;
-        }
 
 
         if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0) == (EdgeServer *) - 1)) {
@@ -91,7 +93,7 @@ void Task_Manager(long QUEUE_POS, long EDGE_SERVER_NUMBER, char *edge_server[EDG
                 write_log("Fork error");
             } 
             if (pid == 0) {
-                Edge_Server(fd_unnamed[i][0], edge_server[i], shared_var);
+                Edge_Server(i);
             }
         
         }
@@ -100,28 +102,59 @@ void Task_Manager(long QUEUE_POS, long EDGE_SERVER_NUMBER, char *edge_server[EDG
 
 
 void Edge_Server(int id) {
+    struct timespec wait = {0, 0};
+    pthread_cond_t cond; 
+    pthread_cond_init(&cond, NULL);
     while (end_processes == 1) {
         char *task;
         char *list[3];
+        char *id_string[BUFFER_LEN];
+        sprintf(id_string, "%ld", id);
 
         if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0)) == (struct EdgeServer *) -1) {
             writ_log_ecra("Shmat error!");
             exit(1);
         }
 
-        char *string;
-        char *stringassist = "READY";
-        string = (char *) (edge_server_name + *stringassist);
-        write_log(string);
-        
-        while (read(fd, NULL, sizeof(NULL)) > 0) {
-            if (read(fd, NULL, sizeof(NULL)) > 0) {
-                pthread_create(&slow_thr, NULL, slowvCPU, NULL);
-                pthread_join(slow_thr, NULL);
+        shared_var[id].vCPU1_full = FREE;
+        shared_var[id].vCPU2_full = FREE;
+
+
+
+        while (read(shared_var[id].fd_unnamed[0], NULL, sizeof(NULL)) > 0) {
+            if (message_queue != NULL && message_queue->string == id_string) {
+                message_queue = message_queue->previous;
+
+                while (shared_var[id].vCPU1_full != FREE || shared_var[id].vCPU2_full != FREE) {
+                    continue;
+                }
+
+                if (shared_var[id].vCPU1_full == FREE && shared_var[id].vCPU2_full == FREE) {
+                    message_queue->string = "ready";
+                    message_queue->previous = message_queue;
+                    message_queue = message_queue->next;
+                    
+                    shared_var[id].performance = STOPPED;
+                    write_log("Maintenance");
+                    wait.tv_sec = time(NULL) + (rand() % 5 + 1);
+                    pthread_cond_timedwait(&cond, &shared_var[id].slow_thread, &wait);
+
+                    message_queue->previous = message_queue;
+                    message_queue = message_queue->next;
+
+                }
             }
-            if (read(fd, NULL, sizeof(NULL)) > 0) {
-                pthread_create(&fast_thr, NULL, fastvCPU, NULL);
-                pthread_join(fast_thr, NULL);
+
+            
+
+
+            if (read(shared_var[id].fd_unnamed, NULL, sizeof(NULL)) > 0) {
+                pthread_create(&shared_var[id].slow_thread, NULL, slow_vCPU, NULL);
+                pthread_join(&shared_var[id].slow_thread, NULL);
+            }
+            if (read(shared_var[id].fd_unnamed, NULL, sizeof(NULL)) > 0) {
+                pthread_create(&shared_var[id].fast_thread, NULL, fast_vCPU, NULL);
+                pthread_join(shared_var[id].fast_thread, NULL);
             } else {
                 continue;
             }
@@ -133,7 +166,27 @@ void Edge_Server(int id) {
 }
 
 
-void Monitor();
+void Monitor() {
+    while (end_processes == 1) {
+        if ((sizeof(task_queue) / sizeof(Task) * QUEUE_POS) > (0.8 * (sizeof(Task) * QUEUE_POS)) && task_queue[0].max_execution_time > MAX_WAIT) {
+            while ((sizeof(task_queue) / sizeof(Task) * QUEUE_POS) > (0.2 * sizeof(Task) * QUEUE_POS)) {
+                for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
+                    shared_var[i].performance = HIGH;
+                }
+            }
+        }
+        else if ((sizeof(task_queue) / sizeof(Task) * QUEUE_POS) < (0.2 * (sizeof(Task) * QUEUE_POS)) {
+            for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
+                    shared_var[i].performance = NORMAL;
+                }
+        }
+
+        else {
+            continue;
+        }
+
+    }
+}
 
 
 void Maintenance_Manager() {
@@ -151,17 +204,14 @@ void Maintenance_Manager() {
             message_queue = message_queue->next;
         }
 
-        
-        int maintenance_time = rand() % 5 + 1;
-
         sleep(rand() % 5 + 1);
         pthread_mutex_unlock(&mutex);
         
-        int previous_performance = shared_var[server].performance;
-        shared_var[server].performance = 0;
+        //int previous_performance = shared_var[server].performance;
+        //shared_var[server].performance = 0;
 
 
-        shared_var[server].performance = previous_performance;
+        // shared_var[server].performance = previous_performance;
 
         
     }
@@ -169,27 +219,35 @@ void Maintenance_Manager() {
 
 
 
-void *slowvCPU() {
-    sem_wait(writing_sem);
+void *slow_vCPU(int id) {
+    struct timespec wait = {0, 0};
+    pthread_cond_t cond; 
+    pthread_cond_init(&cond, NULL);
 
-    while((shared_var->instruction_number * 1000) / (shared_var->processing_power_vCPU1 * 1000000)) {
-        continue;
+    while(1) {
+        wait.tv_sec = time(NULL) + (shared_var[id].instruction_number * 1000) / (shared_var[id].processing_power_vCPU2 * 1000000);
+        shared_var[id].vCPU1_full = FULL;
+        pthread_cond_timedwait(&cond, &shared_var[id].slow_thread, &wait);
+        shared_var[id].vCPU1_full = FREE;
     }
-    write_log("Slow vCPU");
-    sem_post(writing_sem);
+
+    pthread_exit(NULL);
 }
 
 
-void *fastvCPU(void *instrucao) {
-    sem_wait(writing_sem);
+void *fast_vCPU(int id) {
+    struct timespec wait = {0, 0};
+    pthread_cond_t cond; 
+    pthread_cond_init(&cond, NULL);
 
-    while((shared_var->instruction_number * 1000) / (shared_var->processing_power_vCPU2 * 1000000)) {
-        continue;
+    while(1) {
+        wait.tv_sec = time(NULL) + (shared_var[id].instruction_number * 1000) / (shared_var[id].processing_power_vCPU2 * 1000000);
+        shared_var[id].vCPU2_full = FULL;
+        pthread_cond_timedwait(&cond, &shared_var[id].fast_thread, &wait);
+        shared_var[id].vCPU2_full = FREE;
     }
 
-    write_log("Fast vCPU");
-    sem_post(writing_sem);
-    pthread_exit(&instrucao);
+    pthread_exit(NULL);
 }
 
 

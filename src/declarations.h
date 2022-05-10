@@ -33,7 +33,7 @@
 #define BUFFER_LEN 1024
 
 #define FREE 0
-#define OCCUPIED 1
+#define FULL 1
 
 #define TSKMG_TO_EDSV 0
 #define EDSV_TO_TSKMG 1
@@ -44,12 +44,15 @@
 
 
 
+
 // ---------- Structs ---------- //
 
 typedef struct EdgeServer {
     pthread_t slow_thread, fast_thread;
     int fd_unnamed[2];
     int performance;
+    int vCPU1_full;
+    int vCPU2_full;
     long instruction_number;
     long processing_power_vCPU1;
     long next_task_time_vCPU1;
@@ -114,7 +117,7 @@ void Monitor();
 
 void Maintenance_Manager();
 
-void Edge_Server(int fd, char *edge_server[3], EdgeServer *SHM);
+void Edge_Server(int id);
 
 
 // ---------- Functions ---------- //
