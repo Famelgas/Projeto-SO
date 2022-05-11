@@ -111,22 +111,20 @@ void Edge_Server(int id) {
     struct timespec wait = {0, 0};
     pthread_cond_t cond; 
     pthread_cond_init(&cond, NULL);
+
+    if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0)) == (struct EdgeServer *) -1) {
+        writ_log_ecra("Shmat error!");
+        exit(1);
+    }
+
     shared_var[id].tasks_completed = 0;
-    long tasks_completed = 0;
+    shared_var[id].vCPU1_full = FREE;
+    shared_var[id].vCPU2_full = FREE;
+    char *id_string[BUFFER_LEN];
+    sprintf(id_string, "%ld", id);
 
     while (end_processes == 1) {
         Task task;
-        char *list[3];
-        char *id_string[BUFFER_LEN];
-        sprintf(id_string, "%ld", id);
-
-        if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0)) == (struct EdgeServer *) -1) {
-            writ_log_ecra("Shmat error!");
-            exit(1);
-        }
-
-        shared_var[id].vCPU1_full = FREE;
-        shared_var[id].vCPU2_full = FREE;
         close(shared_var[id].fd_unnamed[1]);
 
         while (read(shared_var[id].fd_unnamed[0], &task, sizeof(task)) > 0) {
@@ -158,11 +156,13 @@ void Edge_Server(int id) {
             }
 
             else if (shared_var[id].performance == NORMAL) {
+                shared_var[id].instruction_number = task.instruction_number;
+                shared_var[id].next_task_time_vCPU1 = (task.instruction_number * 1000) / (shared_var[id].processing_power_vCPU1 * 1000000);
+                
                 if (shared_var[id].next_task_time_vCPU1 == 0) {
-                    shared_var[id].instruction_number = task.instruction_number;
-                    shared_var[id].next_task_time_vCPU1 = (task.instruction_number * 1000) / (shared_var[id].processing_power_vCPU1 * 1000000);
                     pthread_create(&shared_var[id].slow_thread, NULL, slow_vCPU(id), NULL);
                     pthread_join(&shared_var[id].slow_thread, NULL);
+                    shared_var[id].tasks_completed++;
                 }
                 else {
                     continue;
@@ -178,10 +178,12 @@ void Edge_Server(int id) {
                     if (shared_var[id].next_task_time_vCPU1 == 0) {
                         pthread_create(&shared_var[id].slow_thread, NULL, slow_vCPU(id), NULL);
                         pthread_join(&shared_var[id].slow_thread, NULL);    
+                        shared_var[id].tasks_completed++;
                     }
                     else if (shared_var[id].next_task_time_vCPU2 == 0){
                         pthread_create(&shared_var[id].fast_thread, NULL, fast_vCPU(id), NULL);
                         pthread_join(shared_var[id].fast_thread, NULL);
+                        shared_var[id].tasks_completed++;
                     }
                     else {
                         continue;

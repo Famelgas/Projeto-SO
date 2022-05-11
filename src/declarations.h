@@ -53,6 +53,7 @@ typedef struct EdgeServer {
     pthread_t slow_thread, fast_thread;
     long tasks_completed;
     int fd_unnamed[2];
+    char *name;
     int performance;
     int vCPU1_full;
     int vCPU2_full;
