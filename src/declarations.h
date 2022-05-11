@@ -29,6 +29,8 @@
 // ---------- Defines ---------- //
 
 #define TASK_PIPE "TASK_PIPE"
+#define EXIT "EXIT"
+#define STATS "STATS"
 
 #define BUFFER_LEN 1024
 
@@ -49,6 +51,7 @@
 
 typedef struct EdgeServer {
     pthread_t slow_thread, fast_thread;
+    long tasks_completed;
     int fd_unnamed[2];
     int performance;
     int vCPU1_full;
@@ -126,6 +129,8 @@ void write_log(char *str);
 
 void clean_resources();
 
-void print_stats();
+void sigint(int signum);
+
+void statistics(int signum);
 
 #endif //DECLARATIONS_H

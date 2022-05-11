@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
 
     int t = 0;
     for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
-        char *token = strtok(temp_edge_server[i], " ");
+        char *token = strtok(temp_edge_server[i], ",");
         while (token != NULL) {
             edge_server[i][t] = token;
             ++t;
@@ -100,6 +100,11 @@ int main(int argc, char *argv[]) {
         t = 0;
     }
     
+    for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
+        shared_var->processing_power_vCPU1 = edge_server[i][1];
+        shared_var->processing_power_vCPU2 = edge_server[i][2];
+    }
+
     free(temp_shared_var);
 
     

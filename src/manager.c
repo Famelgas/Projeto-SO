@@ -15,38 +15,53 @@ void Task_Manager(long QUEUE_POS, long EDGE_SERVER_NUMBER, char *edge_server[EDG
         task_queue[i].max_execution_time = 1000000;
     }
     
-    
+
+    int fd_unnamed[EDGE_SERVER_NUMBER][2];
+    pthread_t threads[2];
+    int thread_id[2];
+
+
+    if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0) == (EdgeServer *) - 1)) {
+        write_log("Shmat error");
+        exit(1);
+    }
+
+    for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
+        if (fork() == 0) {
+                Edge_Server(i);
+        }
+        else {
+            write_log("Error starting Edge Server process");
+        }
+    }
+
+    pthread_create(&threads[0], NULL, thread_scheduler, &thread_id[0]);
+    pthread_create(&threads[1], NULL, thread_scheduler, &thread_id[1]);
+
+
+    // task_pipe read only
+    if ((fd_task_pipe = open(TASK_PIPE, O_RDONLY)) < 0) {
+        perror("Error opening TASK_PIPE for reading");
+        exit(0);
+    }
+
     while (end_processes == 1) {
-        char *stack[QUEUE_POS];
-        int fd;
-        int fd_unnamed[EDGE_SERVER_NUMBER][2];
-        char string[BUFFER_LEN];
-        char *SHM;
         Task task;
-
-
-
-        if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0) == (EdgeServer *) - 1)) {
-            write_log("Shmat error");
-            exit(1);
-        }
-
-
-        // task_pipe read only
-        if ((fd_task_pipe = open(TASK_PIPE, O_RDONLY)) < 0) {
-            perror("Error opening TASK_PIPE for reading");
-            exit(0);
-        }
-
-        for (int i = 0; i < QUEUE_POS; ++i) {
-            stack[i] = NULL;
-        }
-
         char *str;
+
         while (read(fd_task_pipe, &str, BUFFER_LEN)) {
             if (str == NULL) {
                 write_log("Error reading from TASK_PIPE");
+                break;
             }
+            if (strcmp(str, EXIT) == 0) {
+                signal(SIGINT, sigint);
+                break;
+            }
+            if (strcmp(str, STATS) == 0) {
+                signal(SIGTSTP, statistics);
+            }
+
             int t = 0;
             char *str_task;
             char *token = strtok(str, ";");
@@ -61,6 +76,9 @@ void Task_Manager(long QUEUE_POS, long EDGE_SERVER_NUMBER, char *edge_server[EDG
             task.max_execution_time = str_task[2];
             
             for (size_t i = 0; i < sizeof(Task) * QUEUE_POS; i + sizeof(Task)) {
+                if (sizeof(task_queue) == sizeof(Task) * QUEUE_POS) {
+                    break;
+                }
                 if (task_queue[i].task_id == -1) {
                     task_queue[i] = task;
                 }
@@ -68,36 +86,24 @@ void Task_Manager(long QUEUE_POS, long EDGE_SERVER_NUMBER, char *edge_server[EDG
             
             str = "";
         }
-
-
-
         
         for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
-            pipe(fd_unnamed[i]);
+            pipe(shared_var[i].fd_unnamed);
+            close(shared_var[i].fd_unnamed[0]);
 
-            if ((fd = fork()) ==  0) {
-                dup2(fd_unnamed[i][1], fd);
-                close(fd_unnamed[i][0]);
-                close(fd_unnamed[i][1]);
-                execlp("ls", "ls", NULL);
-            }
-            else {
-                dup2(fd_unnamed[i][0], fd);
-                close(fd_unnamed[i][0]);
-                close(fd_unnamed[i][1]);
-                execlp("ls", "ls", NULL);
-            }
-            pid_t pid;
-
-            if ((pid = fork()) < 0) {
-                write_log("Fork error");
-            } 
-            if (pid == 0) {
-                Edge_Server(i);
-            }
-        
+            write(shared_var[i].fd_unnamed[1], &task_queue[0], sizeof(Task));
+            task_queue[0].task_id = -1;
+            task_queue[0].priority = -1;
+            task_queue[0].instruction_number = 0;
+            task_queue[0].max_execution_time = 1000000;
+            
+            close(shared_var[i].fd_unnamed[1]);
         }
     }
+
+    pthread_join(threads[0], NULL);
+    pthread_join(threads[1], NULL);
+    exit(0);
 }
 
 
@@ -105,8 +111,11 @@ void Edge_Server(int id) {
     struct timespec wait = {0, 0};
     pthread_cond_t cond; 
     pthread_cond_init(&cond, NULL);
+    shared_var[id].tasks_completed = 0;
+    long tasks_completed = 0;
+
     while (end_processes == 1) {
-        char *task;
+        Task task;
         char *list[3];
         char *id_string[BUFFER_LEN];
         sprintf(id_string, "%ld", id);
@@ -118,10 +127,9 @@ void Edge_Server(int id) {
 
         shared_var[id].vCPU1_full = FREE;
         shared_var[id].vCPU2_full = FREE;
+        close(shared_var[id].fd_unnamed[1]);
 
-
-
-        while (read(shared_var[id].fd_unnamed[0], NULL, sizeof(NULL)) > 0) {
+        while (read(shared_var[id].fd_unnamed[0], &task, sizeof(task)) > 0) {
             if (message_queue != NULL && message_queue->string == id_string) {
                 message_queue = message_queue->previous;
 
@@ -145,24 +153,64 @@ void Edge_Server(int id) {
                 }
             }
 
-            
-
-
-            if (read(shared_var[id].fd_unnamed, NULL, sizeof(NULL)) > 0) {
-                pthread_create(&shared_var[id].slow_thread, NULL, slow_vCPU, NULL);
-                pthread_join(&shared_var[id].slow_thread, NULL);
-            }
-            if (read(shared_var[id].fd_unnamed, NULL, sizeof(NULL)) > 0) {
-                pthread_create(&shared_var[id].fast_thread, NULL, fast_vCPU, NULL);
-                pthread_join(shared_var[id].fast_thread, NULL);
-            } else {
+            if (shared_var[id].performance == STOPPED) {
                 continue;
             }
+
+            else if (shared_var[id].performance == NORMAL) {
+                if (shared_var[id].next_task_time_vCPU1 == 0) {
+                    shared_var[id].instruction_number = task.instruction_number;
+                    shared_var[id].next_task_time_vCPU1 = (task.instruction_number * 1000) / (shared_var[id].processing_power_vCPU1 * 1000000);
+                    pthread_create(&shared_var[id].slow_thread, NULL, slow_vCPU(id), NULL);
+                    pthread_join(&shared_var[id].slow_thread, NULL);
+                }
+                else {
+                    continue;
+                }
+            }
+
+            else if (shared_var[id].performance == HIGH) {
+                shared_var[id].instruction_number = task.instruction_number;
+                shared_var[id].next_task_time_vCPU1 = (task.instruction_number * 1000) / (shared_var[id].processing_power_vCPU1 * 1000000);
+                shared_var[id].next_task_time_vCPU2 = (task.instruction_number * 1000) / (shared_var[id].processing_power_vCPU2 * 1000000);
+                
+                if (task.max_execution_time < shared_var[id].next_task_time_vCPU1) {
+                    if (shared_var[id].next_task_time_vCPU1 == 0) {
+                        pthread_create(&shared_var[id].slow_thread, NULL, slow_vCPU(id), NULL);
+                        pthread_join(&shared_var[id].slow_thread, NULL);    
+                    }
+                    else if (shared_var[id].next_task_time_vCPU2 == 0){
+                        pthread_create(&shared_var[id].fast_thread, NULL, fast_vCPU(id), NULL);
+                        pthread_join(shared_var[id].fast_thread, NULL);
+                    }
+                    else {
+                        continue;
+                    }
+                }
+                
+                else if (task.max_execution_time > shared_var[id].next_task_time_vCPU1 && task.max_execution_time < shared_var[id].next_task_time_vCPU2) {
+                    if (shared_var[id].next_task_time_vCPU2 == 0){
+                        pthread_create(&shared_var[id].fast_thread, NULL, fast_vCPU(id), NULL);
+                        pthread_join(shared_var[id].fast_thread, NULL);
+                    }
+                    else {
+                        continue;
+                    }
+                }
+
+                else {
+                    continue;
+                }
+            }
+
+            shared_var[id].instruction_number = 0;
+            shared_var[id].next_task_time_vCPU1 = 0;
+            shared_var[id].next_task_time_vCPU2 = 0;
+
         }
 
-
-        pthread_exit(NULL);
     }
+    exit(0);
 }
 
 
@@ -175,7 +223,7 @@ void Monitor() {
                 }
             }
         }
-        else if ((sizeof(task_queue) / sizeof(Task) * QUEUE_POS) < (0.2 * (sizeof(Task) * QUEUE_POS)) {
+        else if ((sizeof(task_queue) / sizeof(Task) * QUEUE_POS) < (0.2 * (sizeof(Task) * QUEUE_POS))) {
             for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
                     shared_var[i].performance = NORMAL;
                 }
@@ -184,8 +232,8 @@ void Monitor() {
         else {
             continue;
         }
-
     }
+    exit(0);
 }
 
 
@@ -215,6 +263,7 @@ void Maintenance_Manager() {
 
         
     }
+    exit(0);
 }
 
 
@@ -225,7 +274,7 @@ void *slow_vCPU(int id) {
     pthread_cond_init(&cond, NULL);
 
     while(1) {
-        wait.tv_sec = time(NULL) + (shared_var[id].instruction_number * 1000) / (shared_var[id].processing_power_vCPU2 * 1000000);
+        wait.tv_sec = time(NULL) + (shared_var[id].instruction_number * 1000) / (shared_var[id].processing_power_vCPU1 * 1000000);
         shared_var[id].vCPU1_full = FULL;
         pthread_cond_timedwait(&cond, &shared_var[id].slow_thread, &wait);
         shared_var[id].vCPU1_full = FREE;

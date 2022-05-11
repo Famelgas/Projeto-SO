@@ -17,12 +17,16 @@ void sigint(int signum) {
     }
 
     end_processes = 0;
+    statistics(SIGTSTP);
+    clean_resources();
+    exit(0);
 }
 
 
 
 void statistics(int signum) {
-    write_log("SIGSTP signal recieved");
+    write_log("SIGTSTP signal recieved");
+    
 
 
 }
@@ -39,7 +43,7 @@ void write_log(char *str) {
 void clean_resources() {
     fclose(config_file);
     fclose(log_file);
-    free(shared_var);
+    shmdt(shared_var);
     free(task_queue);
     unlink(TASK_PIPE);
     sem_close(writing_sem);
