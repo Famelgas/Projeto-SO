@@ -80,7 +80,7 @@ typedef struct MessageQueue {
 
 typedef struct Stats {
     long tasks_completed;
-    long average_task_time;
+    long average_response_time;
     long non_completed_tasks;
 } Stats;
 
@@ -95,6 +95,7 @@ long EDGE_SERVER_NUMBER;
 
 
 EdgeServer *shared_var;
+Stats *stats;
 
 Task *task_queue;
 MessageQueue *message_queue;
@@ -122,7 +123,7 @@ pthread_cond_t maintenance_ready = PTHREAD_COND_INITIALIZER;
 
 // ---------- Processes ---------- //
 
-void Task_Manager(long QUEUE_POS, long EDGE_SERVER_NUMBER, char *edge_server[EDGE_SERVER_NUMBER][3]);
+void Task_Manager();
 
 void Monitor();
 

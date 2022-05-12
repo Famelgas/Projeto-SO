@@ -1,7 +1,7 @@
 FLAGS   = -pthread -Wall -g
 CC      = gcc
 PROG    = offload_simulator
-OBJS    = offloading_simulator.o functions.o manager.o mobile_node.o 
+OBJS    = offloading_simulator.o mobile_node.o 
 
 all:    ${PROG}
 
@@ -16,10 +16,10 @@ ${PROG}:        ${OBJS}
 
 ###################################################################
 
-mobile_node.o: mobile_node.c declarations.h
-
-manager.o: manager.c declarations.h
+mobile_node.o: mobile_node.c
 
 offloading_simulator.o: offloading_simulator.c declarations.h
 
-offload_simulator: offloading_simulator.o manager.o mobile_node.o
+mobile_node: mobile_node.o
+
+offload_simulator: offloading_simulator.o
