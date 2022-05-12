@@ -95,7 +95,7 @@ long EDGE_SERVER_NUMBER;
 
 
 EdgeServer *shared_var;
-Stats *stats;
+Stats stats;
 
 Task *task_queue;
 MessageQueue *message_queue;

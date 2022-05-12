@@ -180,7 +180,7 @@ void Edge_Server(int id) {
                     pthread_create(&shared_var[id].slow_thread, NULL, slow_vCPU(id), NULL);
                     pthread_join(shared_var[id].slow_thread, NULL);
                     shared_var[id].tasks_completed++;
-                    stats->tasks_completed++;
+                    stats.tasks_completed++;
                 }
                 else {
                     continue;
@@ -197,13 +197,13 @@ void Edge_Server(int id) {
                         pthread_create(&shared_var[id].slow_thread, NULL, slow_vCPU(id), NULL);
                         pthread_join(shared_var[id].slow_thread, NULL);    
                         shared_var[id].tasks_completed++;
-                        stats->tasks_completed++;
+                        stats.tasks_completed++;
                     }
                     else if (shared_var[id].next_task_time_vCPU2 == 0){
                         pthread_create(&shared_var[id].fast_thread, NULL, fast_vCPU(id), NULL);
                         pthread_join(shared_var[id].fast_thread, NULL);
                         shared_var[id].tasks_completed++;
-                        stats->tasks_completed++;
+                        stats.tasks_completed++;
                     }
                     else {
                         continue;
@@ -427,17 +427,17 @@ void statistics(int signum) {
         exit(1);
     }
 
-    printf("Total tasks completed: %ld", stats->tasks_completed);
+    printf("Total tasks completed: %ld", stats.tasks_completed);
 
     // implementar tempo medio de execuçao por tarefa
-    printf("Average task response time: %ld", stats->average_response_time);
+    printf("Average task response time: %ld", stats.average_response_time);
 
 
     for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
         printf("Tasks completed by edge server %s: %ld", shared_var[i].name, shared_var[i].tasks_completed);
     }
     
-    printf("Non completed tasks: %ld", stats->non_completed_tasks);   
+    printf("Non completed tasks: %ld", stats.non_completed_tasks);   
 
 
 }
@@ -467,6 +467,9 @@ void clean_resources() {
 
 
 int main(int argc, char *argv[]) {
+    signal(SIGINT, sigint);
+    signal(SIGTSTP, statistics);
+
     end_processes = 1;
     config_file_name = argv[1];
     // ---------- Named Semaphore ---------- //
@@ -484,9 +487,9 @@ int main(int argc, char *argv[]) {
 
     // ---------- Default stats ---------- //
 
-    stats->tasks_completed = 0;
-    stats->average_response_time = 0;
-    stats->non_completed_tasks = 0;
+    stats.tasks_completed = 0;
+    stats.average_response_time = 0;
+    stats.non_completed_tasks = 0;
 
     // ---------- Task Pipe ---------- //
 
@@ -496,6 +499,7 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
+    printf("ola\n");
 
     // ---------- Mutex Semaphore ---------- //
 
@@ -509,9 +513,9 @@ int main(int argc, char *argv[]) {
     
     if (config_file == NULL) {
         write_log("Error config config_file doesn't exist");
-        exit(-1);
+        exit(1);
     }
-
+    printf("a");
     if (fgets(line, BUFFER_LEN, config_file) != NULL) {
         QUEUE_POS = strtol(line, &ptr, 10);
     }
@@ -544,7 +548,7 @@ int main(int argc, char *argv[]) {
     char *edge_server[EDGE_SERVER_NUMBER][3];
     char *temp_edge_server[EDGE_SERVER_NUMBER];
 
-
+    printf("shm");
     // ---------- Create shared memory ---------- //
     
     EdgeServer *temp_shared_var = malloc(sizeof(EdgeServer));
@@ -574,6 +578,7 @@ int main(int argc, char *argv[]) {
 
     free(temp_shared_var);
 
+    printf("meio");
     
     // ---------- Start task manager ---------- //
 
@@ -619,8 +624,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-
-    clean_resources();
+    printf("adeus");
 
     return 0;
 }
