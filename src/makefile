@@ -6,13 +6,13 @@ OBJS    = offloading_simulator.o functions.o manager.o mobile_node.o
 all:    ${PROG}
 
 clean:
-        rm ${OBJS} ${PROG} *~
+	rm ${OBJS} ${PROG} *~
 
 ${PROG}:        ${OBJS}
-        ${CC} ${FLAGS} ${OBJS} -o $@
+	${CC} ${FLAGS} ${OBJS} -o $@
 
 .c.o:
-        ${CC} ${FLAGS} $< -c
+	${CC} ${FLAGS} $< -c
 
 ###################################################################
 
@@ -20,7 +20,7 @@ offloading_simulator.o: declarations.h offloading_simulator.c
 
 functions.o: declarations.h functions.c
 
-manager.o: declarations.h managar.c
+manager.o: declarations.h manager.c
 
 mobile_node.o: declarations.h mobile_node.c
 

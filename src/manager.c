@@ -113,7 +113,7 @@ void Edge_Server(int id) {
     pthread_cond_init(&cond, NULL);
 
     if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0)) == (struct EdgeServer *) -1) {
-        writ_log_ecra("Shmat error!");
+        write_log("Shmat error!");
         exit(1);
     }
 
@@ -349,6 +349,8 @@ void *thread_scheduler() {
     for (size_t i = 0; i < sizeof(Task) * QUEUE_POS; i + sizeof(Task)) {
         task_queue[i].priority = p;
     }
+
+    pthread_exit(NULL);
 }
 
 
@@ -375,4 +377,6 @@ void *thread_dispatcher() {
             }
         }
     }
+
+    pthread_exit(NULL);
 }

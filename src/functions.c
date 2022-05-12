@@ -28,7 +28,7 @@ void statistics(int signum) {
     write_log("SIGTSTP signal recieved");
 
     if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0)) == (struct EdgeServer *) -1) {
-        writ_log_ecra("Shmat error!");
+        write_log("Shmat error!");
         exit(1);
     }
 
@@ -36,13 +36,13 @@ void statistics(int signum) {
     for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
         total_tasks_completed += shared_var[i].tasks_completed;
     }
-    print("Total tasks completed: %ld", total_tasks_completed);
+    printf("Total tasks completed: %ld", total_tasks_completed);
 
     // implementar tempo medio de execuçao por tarefa
 
 
     for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
-        print("Tasks completed by edge server %s: %ld", shared_var[i].name, shared_var[i].tasks_completed);
+        printf("Tasks completed by edge server %s: %ld", shared_var[i].name, shared_var[i].tasks_completed);
     }
     
     

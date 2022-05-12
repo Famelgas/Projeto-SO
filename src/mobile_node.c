@@ -32,17 +32,19 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-void *mobile_node(char *request_number, char *interval_time, char *instruction_number, char *max_execution_time) {
-    
-    for (int i = 0; i < request_number; ++i) {
+void mobile_node(char *request_number, char *interval_time, char *instruction_number, char *max_execution_time) {
+    int request_num = atoi(request_number);
+    int interval = atoi(interval_time);
+    for (int i = 0; i < request_num; ++i) {
         int id = i;
         char *task = "";
-        itoa(id, task, 10);
+        sprintf(task, "%d", id);
         strcat(task, ";");
         strcat(task, instruction_number);
         strcat(task, ";");
         strcat(task, max_execution_time);
         write(fd_task_pipe, task, sizeof(task));
+        sleep(interval);
     }
 
     exit(0);

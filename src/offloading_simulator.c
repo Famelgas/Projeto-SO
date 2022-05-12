@@ -2,7 +2,6 @@
 // Miguel Ângelo Graça Meneses, 2020221791
 
 #include "declarations.h"
-#include <errno.h>
 
 
 int main(int argc, char *argv[]) {
@@ -36,7 +35,7 @@ int main(int argc, char *argv[]) {
 
 
     // ---------- Leitura config file ---------- //
-    char *line;
+    char line[BUFFER_LEN];
     char *ptr;
     config_file = fopen(config_file_name, "r");
     
@@ -101,8 +100,8 @@ int main(int argc, char *argv[]) {
     }
     
     for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
-        shared_var->processing_power_vCPU1 = edge_server[i][1];
-        shared_var->processing_power_vCPU2 = edge_server[i][2];
+        shared_var->processing_power_vCPU1 = strtol(edge_server[i][1], &ptr, 10);
+        shared_var->processing_power_vCPU2 = strtol(edge_server[i][2], &ptr, 10);
     }
 
     free(temp_shared_var);
@@ -111,44 +110,44 @@ int main(int argc, char *argv[]) {
     // ---------- Start task manager ---------- //
 
     if ((task_manager_id = fork()) == 0) {
-        write_logfile("TASK MANAGER STARTING");
+        write_log("TASK MANAGER STARTING");
         Task_Manager(QUEUE_POS, EDGE_SERVER_NUMBER, edge_server);
     }
     else if (task_manager_id == -1) {
-        write_logfile("ERROR STARTING TASK MANAGER PROCESS");
+        write_log("ERROR STARTING TASK MANAGER PROCESS");
         exit(1);
     }
 
     // ---------- Start maintenance manager ---------- //
 
     if ((maintenance_manager_id = fork()) == 0) {
-        write_logfile("MAINTENANCE MANAGER STARTING");
+        write_log("MAINTENANCE MANAGER STARTING");
         Maintenance_Manager();
     }
     else if (maintenance_manager_id == -1) {
-        write_logfile("ERROR CREATING MAINTENANCE MANAGER PROCESS");
+        write_log("ERROR CREATING MAINTENANCE MANAGER PROCESS");
         exit(1);
     }
     
     // ---------- Start monitor ---------- //
 
     if ((monitor_id = fork()) == 0) {
-        write_logfile("MONITOR STARTING");
+        write_log("MONITOR STARTING");
         Maintenance_Manager();
     }
     else if (monitor_id == -1) {
-        write_logfile("ERROR CREATING MONITOR PROCESS");
+        write_log("ERROR CREATING MONITOR PROCESS");
         exit(1);
     }
 
     // ---------- Start thread scheduler ---------- //
 
     if ((thread_sch_id = fork()) == 0) {
-        write_logfile("TRHEAD SCHEDULER STARTING");
+        write_log("TRHEAD SCHEDULER STARTING");
         Maintenance_Manager();
     }
     else if (thread_sch_id == -1) {
-        write_logfile("ERROR CREATING TRHEAD SCHEDULER PROCESS");
+        write_log("ERROR CREATING TRHEAD SCHEDULER PROCESS");
         exit(1);
     }
 

@@ -124,6 +124,16 @@ void Maintenance_Manager();
 void Edge_Server(int id);
 
 
+// ---------- Threads ---------- //
+
+void *slow_vCPU(int id);
+
+void *fast_vCPU(int id);
+
+void *thread_scheduler();
+
+void *thread_dispatcher();
+
 // ---------- Functions ---------- //
 
 void write_log(char *str);
