@@ -23,7 +23,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <time.h>
-
+#include <signal.h>
 
 
 // ---------- Defines ---------- //
@@ -52,6 +52,7 @@
 typedef struct EdgeServer {
     pthread_t slow_thread, fast_thread;
     long tasks_completed;
+    int num_maintenance;
     int fd_unnamed[2];
     char *name;
     int performance;
@@ -76,6 +77,12 @@ typedef struct MessageQueue {
     struct MessageQueue *next;
     struct MessageQueue *previous;
 } MessageQueue;
+
+typedef struct Stats {
+    long tasks_completed;
+    long average_task_time;
+    long non_completed_tasks;
+} Stats;
 
 
 

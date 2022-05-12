@@ -15,8 +15,6 @@ void Task_Manager(long QUEUE_POS, long EDGE_SERVER_NUMBER, char *edge_server[EDG
         task_queue[i].max_execution_time = 1000000;
     }
     
-
-    int fd_unnamed[EDGE_SERVER_NUMBER][2];
     pthread_t threads[2];
     int thread_id[2];
 
@@ -63,7 +61,7 @@ void Task_Manager(long QUEUE_POS, long EDGE_SERVER_NUMBER, char *edge_server[EDG
             }
 
             int t = 0;
-            char *str_task;
+            char str_task[BUFFER_LEN];
             char *token = strtok(str, ";");
             
             while (token != NULL) {
@@ -120,8 +118,8 @@ void Edge_Server(int id) {
     shared_var[id].tasks_completed = 0;
     shared_var[id].vCPU1_full = FREE;
     shared_var[id].vCPU2_full = FREE;
-    char *id_string[BUFFER_LEN];
-    sprintf(id_string, "%ld", id);
+    char id_string[BUFFER_LEN];
+    sprintf(id_string, "%d", id);
 
     while (end_processes == 1) {
         Task task;
@@ -218,14 +216,14 @@ void Edge_Server(int id) {
 
 void Monitor() {
     while (end_processes == 1) {
-        if ((sizeof(task_queue) / sizeof(Task) * QUEUE_POS) > (0.8 * (sizeof(Task) * QUEUE_POS)) && task_queue[0].max_execution_time > MAX_WAIT) {
-            while ((sizeof(task_queue) / sizeof(Task) * QUEUE_POS) > (0.2 * sizeof(Task) * QUEUE_POS)) {
+        if ((sizeof(task_queue) / (sizeof(Task) * QUEUE_POS)) > (0.8 * (sizeof(Task) * QUEUE_POS)) && task_queue[0].max_execution_time > MAX_WAIT) {
+            while ((sizeof(task_queue) / (sizeof(Task) * QUEUE_POS)) > (0.2 * sizeof(Task) * QUEUE_POS)) {
                 for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
                     shared_var[i].performance = HIGH;
                 }
             }
         }
-        else if ((sizeof(task_queue) / sizeof(Task) * QUEUE_POS) < (0.2 * (sizeof(Task) * QUEUE_POS))) {
+        else if ((sizeof(task_queue) / (sizeof(Task) * QUEUE_POS)) < (0.2 * (sizeof(Task) * QUEUE_POS))) {
             for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
                     shared_var[i].performance = NORMAL;
                 }
@@ -243,7 +241,7 @@ void Maintenance_Manager() {
     while (end_processes == 1) {
         pthread_mutex_lock(&mutex);
         if (message_queue == NULL) {
-            sprintf(message_queue->string, "%ld", rand() % EDGE_SERVER_NUMBER + 1);
+            sprintf(message_queue->string, "%d", rand() % EDGE_SERVER_NUMBER + 1);
             message_queue->previous = message_queue;
             message_queue = message_queue->next;
         }
@@ -306,7 +304,7 @@ void *thread_scheduler() {
     for (size_t i = 0; i < sizeof(Task) * QUEUE_POS; i + sizeof(Task)) {
         if (task_queue[i].priority == 1) {
             int b = 1;
-            for (size_t e = 0; e < EDGE_SERVER_NUMBER; e + sizeof(EdgeServer)) {
+            for (int e = 0; e < EDGE_SERVER_NUMBER; ++e) {
                 if (shared_var->performance == STOPPED) {
                     continue;
                 }
@@ -358,7 +356,7 @@ void *thread_dispatcher() {
     for (size_t i = 0; i < sizeof(Task) * QUEUE_POS; i + sizeof(Task)) {
         if (task_queue[i].priority == 1) {
             int b = 1;
-            for (size_t e = 0; e < EDGE_SERVER_NUMBER; e + sizeof(EdgeServer)) {
+            for (int e = 0; e < EDGE_SERVER_NUMBER; ++e) {
                 if (task_queue[i].max_execution_time > shared_var[e].next_task_time_vCPU1) {
                     b = 0;
                 }
@@ -380,3 +378,74 @@ void *thread_dispatcher() {
 
     pthread_exit(NULL);
 }
+
+
+
+// ---------- Functions ---------- //
+
+
+
+void sigint(int signum) {
+    write_log("SIGINT signal recieved");
+    unlink(TASK_PIPE);
+    for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
+        while (shared_var[i].performance > 0) {
+            write_log("Task not completed");
+            pthread_join(shared_var[i].slow_thread, NULL);
+            pthread_join(shared_var[i].fast_thread, NULL);
+        }
+    }
+
+    end_processes = 0;
+    statistics(SIGTSTP);
+    clean_resources();
+    exit(0);
+}
+
+
+
+void statistics(int signum) {
+    write_log("SIGTSTP signal recieved");
+
+    if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0)) == (struct EdgeServer *) -1) {
+        write_log("Shmat error!");
+        exit(1);
+    }
+
+    long total_tasks_completed = 0;
+    for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
+        total_tasks_completed += shared_var[i].tasks_completed;
+    }
+    printf("Total tasks completed: %ld", total_tasks_completed);
+
+    // implementar tempo medio de execuçao por tarefa
+
+
+    for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
+        printf("Tasks completed by edge server %s: %ld", shared_var[i].name, shared_var[i].tasks_completed);
+    }
+    
+    
+
+
+}
+
+
+void write_log(char *str) {
+    sem_wait(writing_sem);
+    fprintf(log_file, "%s\n", str);
+    fflush(log_file);
+    sem_post(writing_sem);
+}
+
+
+void clean_resources() {
+    fclose(config_file);
+    fclose(log_file);
+    shmdt(shared_var);
+    free(task_queue);
+    unlink(TASK_PIPE);
+    sem_close(writing_sem);
+}
+
+
