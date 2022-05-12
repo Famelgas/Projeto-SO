@@ -7,8 +7,18 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/ipc.h>
 #include <sys/shm.h>
+#include <sys/stat.h>
+#include <sys/msg.h>
 #include <semaphore.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <time.h>
+#include <signal.h>
 
 
 void mobile_node(int fd_task_pipe, char *request_number, char *interval_time, char *instruction_number, char *max_execution_time) {
