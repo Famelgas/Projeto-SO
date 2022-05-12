@@ -1,7 +1,7 @@
 FLAGS   = -Wall -g
 CC      = gcc
 PROG    = offload_simulator
-OBJS    = edge_server.o offloading_simulator.o manager.o mobile_node.o 
+OBJS    = offloading_simulator.o functions.o manager.o mobile_node.o 
 
 all:    ${PROG}
 
@@ -16,9 +16,9 @@ ${PROG}:        ${OBJS}
 
 ###################################################################
 
-edge_server.o: declarations.h edge_server.c
-
 offloading_simulator.o: declarations.h offloading_simulator.c
+
+functions.o: declarations.h functions.c
 
 manager.o: declarations.h managar.c
 
