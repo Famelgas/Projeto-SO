@@ -4,6 +4,8 @@
 #include "declarations.h"
 
 
+// ---------- Processes ---------- //
+
 
 void Task_Manager() {
     task_queue = malloc(sizeof(Task) * QUEUE_POS);
@@ -17,19 +19,26 @@ void Task_Manager() {
     pthread_t threads[2];
     int thread_id[2];
 
-
+    sem_wait(shared_var_sem);
     if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0)) == (EdgeServer *) - 1) {
         write_log("Shmat error");
         exit(1);
     }
+    sem_post(shared_var_sem);
+
 
     for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
         if (fork() == 0) {
-                Edge_Server(i);
+            Edge_Server(i);
+
         }
         else {
             write_log("Error starting Edge Server process");
         }
+        
+        sem_wait(shared_var_sem);
+        sem_post(shared_var_sem);
+
     }
 
     pthread_create(&threads[0], NULL, thread_scheduler, &thread_id[0]);
@@ -85,6 +94,7 @@ void Task_Manager() {
             str = "";
         }
         
+        sem_wait(shared_var_sem);
         for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
             pipe(shared_var[i].fd_unnamed);
             close(shared_var[i].fd_unnamed[0]);
@@ -97,6 +107,7 @@ void Task_Manager() {
             
             close(shared_var[i].fd_unnamed[1]);
         }
+        sem_post(shared_var_sem);
     }
 
     pthread_join(threads[0], NULL);
@@ -106,6 +117,7 @@ void Task_Manager() {
 
 
 void Edge_Server(int id) {
+    sem_wait(shared_var_sem);
     if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0)) == (struct EdgeServer *) -1) {
         write_log("Shmat error!");
         exit(1);
@@ -114,16 +126,21 @@ void Edge_Server(int id) {
     shared_var[id].tasks_completed = 0;
     shared_var[id].vCPU1_full = FREE;
     shared_var[id].vCPU2_full = FREE;
+
+    sem_post(shared_var_sem);
+
     char id_string[BUFFER_LEN];
     sprintf(id_string, "%d", id);
 
     while (end_processes == 1) {
+        sem_wait(shared_var_sem);
         Task task;
         close(shared_var[id].fd_unnamed[1]);
 
         while (read(shared_var[id].fd_unnamed[0], &task, sizeof(task)) > 0) {
             if (message_queue != NULL && message_queue->string == id_string) {
                 message_queue = message_queue->previous;
+                int previous_performance;
 
                 while (shared_var[id].vCPU1_full != FREE || shared_var[id].vCPU2_full != FREE) {
                     continue;
@@ -146,10 +163,13 @@ void Edge_Server(int id) {
                         free(message_queue);
                     }
                     message_queue->previous = message_queue;
-                    
+
+                    previous_performance = shared_var[id].performance;
                     shared_var[id].performance = STOPPED;
                     write_log("Maintenance");
                     sleep(rand() % 5 + 1);
+
+                    shared_var[id].performance = previous_performance;
 
                     if (message_queue->previous != NULL) {
                         message_queue = message_queue->previous;
@@ -230,6 +250,7 @@ void Edge_Server(int id) {
             shared_var[id].next_task_time_vCPU2 = 0;
 
         }
+        sem_post(shared_var_sem);
 
     }
     exit(0);
@@ -238,6 +259,7 @@ void Edge_Server(int id) {
 
 void Monitor() {
     while (end_processes == 1) {
+        sem_wait(shared_var_sem);
         if ((sizeof(task_queue) / QUEUE_POS) > (0.8 * QUEUE_POS) && task_queue[0].max_execution_time > MAX_WAIT) {
             while ((sizeof(task_queue) / QUEUE_POS) > (0.2 * QUEUE_POS)) {
                 for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
@@ -254,6 +276,7 @@ void Monitor() {
         else {
             continue;
         }
+        sem_post(shared_var_sem);
     }
     exit(0);
 }
@@ -261,7 +284,6 @@ void Monitor() {
 
 void Maintenance_Manager() {
     while (end_processes == 1) {
-        pthread_mutex_lock(&mutex);
         if (message_queue == NULL) {
             sprintf(message_queue->string, "%ld", rand() % EDGE_SERVER_NUMBER + 1);
             message_queue->previous = message_queue;
@@ -275,90 +297,91 @@ void Maintenance_Manager() {
         }
 
         sleep(rand() % 5 + 1);
-        pthread_mutex_unlock(&mutex);
-        
-        //int previous_performance = shared_var[server].performance;
-        //shared_var[server].performance = 0;
-
-
-        // shared_var[server].performance = previous_performance;
-
-        
     }
     exit(0);
 }
 
 
+// ---------- Threads ---------- //
+
 
 void *slow_vCPU(int id) {
     while(1) {
+        pthread_mutex_lock(shared_var[id].slow_vCPU_mutex);
         long wait = (shared_var[id].instruction_number * 1000) / (shared_var[id].processing_power_vCPU1 * 1000000);
         shared_var[id].vCPU1_full = FULL;
         sleep(wait);
         shared_var[id].vCPU1_full = FREE;
+        pthread_mutex_unlock(shared_var[id].slow_vCPU_mutex);
+        pthread_exit(NULL);
     }
 
-    pthread_exit(NULL);
     return NULL;
 }
 
 
 void *fast_vCPU(int id) {
     while(1) {
+        pthread_mutex_lock(shared_var[id].fast_vCPU_mutex);
         long wait = (shared_var[id].instruction_number * 1000) / (shared_var[id].processing_power_vCPU2 * 1000000);
         shared_var[id].vCPU2_full = FULL;
         sleep(wait);
         shared_var[id].vCPU2_full = FREE;
+        pthread_mutex_unlock(shared_var[id].fast_vCPU_mutex);
+        pthread_exit(NULL);
     }
 
-    pthread_exit(NULL);
     return NULL;
 }
 
 
 void *thread_scheduler() {
-    for (int i = 0; i < QUEUE_POS; ++i) {
-        if (task_queue[i].priority == 1) {
-            int b = 1;
-            for (int e = 0; e < EDGE_SERVER_NUMBER; ++e) {
-                if (shared_var->performance == STOPPED) {
-                    continue;
-                }
-                if (task_queue[i].max_execution_time > shared_var[e].next_task_time_vCPU1) {
-                    b = 0;
-                }
+    while (end_processes == 1) {
+        for (int i = 0; i < QUEUE_POS; ++i) {
+            if (task_queue[i].priority == 1) {
+                int b = 1;
+                sem_wait(shared_var_sem);
+                for (int e = 0; e < EDGE_SERVER_NUMBER; ++e) {
+                    if (shared_var->performance == STOPPED) {
+                        continue;
+                    }
+                    if (task_queue[i].max_execution_time > shared_var[e].next_task_time_vCPU1) {
+                        b = 0;
+                    }
 
-                if (task_queue[i].max_execution_time > shared_var[e].next_task_time_vCPU2) {
-                    b = 0;
+                    if (task_queue[i].max_execution_time > shared_var[e].next_task_time_vCPU2) {
+                        b = 0;
+                    }
+                }
+                sem_post(shared_var_sem);
+                
+                if (b == 0) {
+                    write_log("Task deleted");
+                    task_queue[i].task_id = -1;
+                    task_queue[i].priority = -1;
+                    task_queue[i].instruction_number = 0;
+                    task_queue[i].max_execution_time = 0;
                 }
             }
-            
-            if (b == 0) {
-                write_log("Task deleted");
-                task_queue[i].task_id = -1;
-                task_queue[i].priority = -1;
-                task_queue[i].instruction_number = 0;
-                task_queue[i].max_execution_time = 0;
+        }
+
+        Task key;
+        int j;
+        for (int i = 1; i < QUEUE_POS; ++i) {
+            key = task_queue[i];
+            j = i - sizeof(Task);
+
+            while (j >= 0 && task_queue[j].max_execution_time > key.max_execution_time) {
+                task_queue[j + 1] = task_queue[j];
+                j = j - 1;
             }
+            task_queue[j + 1] = key;
         }
-    }
 
-    Task key;
-    int j;
-    for (int i = 1; i < QUEUE_POS; ++i) {
-        key = task_queue[i];
-        j = i - sizeof(Task);
-
-        while (j >= 0 && task_queue[j].max_execution_time > key.max_execution_time) {
-            task_queue[j + 1] = task_queue[j];
-            j = j - 1;
+        int p = 0;
+        for (int i = 0; i < QUEUE_POS; ++i) {
+            task_queue[i].priority = p;
         }
-        task_queue[j + 1] = key;
-    }
-
-    int p = 0;
-    for (int i = 0; i < QUEUE_POS; ++i) {
-        task_queue[i].priority = p;
     }
 
     pthread_exit(NULL);
@@ -367,29 +390,32 @@ void *thread_scheduler() {
 
 
 void *thread_dispatcher() {
-    for (int i = 0; i < QUEUE_POS; ++i) {
-        if (task_queue[i].priority == 1) {
-            int b = 1;
-            for (int e = 0; e < EDGE_SERVER_NUMBER; ++e) {
-                if (task_queue[i].max_execution_time > shared_var[e].next_task_time_vCPU1) {
-                    b = 0;
-                }
+    while (end_processes == 1) {
+        for (int i = 0; i < QUEUE_POS; ++i) {
+            if (task_queue[i].priority == 1) {
+                int b = 1;
+                sem_wait(shared_var_sem);
+                for (int e = 0; e < EDGE_SERVER_NUMBER; ++e) {
+                    if (task_queue[i].max_execution_time > shared_var[e].next_task_time_vCPU1) {
+                        b = 0;
+                    }
 
-                if (task_queue[i].max_execution_time > shared_var[e].next_task_time_vCPU2) {
-                    b = 0;
+                    if (task_queue[i].max_execution_time > shared_var[e].next_task_time_vCPU2) {
+                        b = 0;
+                    }
                 }
-            }
-            
-            if (b == 0) {
-                write_log("Task deleted");
-                task_queue[i].task_id = -1;
-                task_queue[i].priority = -1;
-                task_queue[i].instruction_number = 0;
-                task_queue[i].max_execution_time = 0;
+                sem_post(shared_var_sem);
+                
+                if (b == 0) {
+                    write_log("Task deleted");
+                    task_queue[i].task_id = -1;
+                    task_queue[i].priority = -1;
+                    task_queue[i].instruction_number = 0;
+                    task_queue[i].max_execution_time = 0;
+                }
             }
         }
     }
-
     pthread_exit(NULL);
     return NULL;
 }
@@ -403,6 +429,7 @@ void *thread_dispatcher() {
 void sigint(int signum) {
     write_log("SIGINT signal recieved");
     unlink(TASK_PIPE);
+    sem_wait(shared_var_sem);
     for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
         while (shared_var[i].performance > 0) {
             write_log("Task not completed");
@@ -410,6 +437,7 @@ void sigint(int signum) {
             pthread_join(shared_var[i].fast_thread, NULL);
         }
     }
+    sem_post(shared_var_sem);
 
     end_processes = 0;
     statistics(SIGTSTP);
@@ -420,6 +448,9 @@ void sigint(int signum) {
 
 
 void statistics(int signum) {
+    sem_wait(stats_sem);
+    sem_wait(shared_var_sem);
+
     write_log("SIGTSTP signal recieved");
 
     if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0)) == (struct EdgeServer *) -1) {
@@ -439,6 +470,8 @@ void statistics(int signum) {
     
     printf("Non completed tasks: %ld", stats.non_completed_tasks);   
 
+    sem_post(shared_var_sem);
+    sem_post(stats_sem);
 
 }
 
@@ -457,7 +490,9 @@ void clean_resources() {
     shmdt(shared_var);
     free(task_queue);
     unlink(TASK_PIPE);
-    sem_close(writing_sem);
+    sem_unlink("WRITING_SEM");
+    sem_unlink("STATS_SEM");
+    sem_unlink("SHARED_VAR_SEM");
 }
 
 
@@ -474,8 +509,16 @@ int main(int argc, char *argv[]) {
     config_file_name = argv[1];
     // ---------- Named Semaphore ---------- //
 
-    sem_unlink("WRITING");
-    writing_sem = sem_open("WRITING", O_CREAT | O_EXCL, 0700, 1);
+    sem_unlink("WRITING_SEM");
+    writing_sem = sem_open("WRITING_SEM", O_CREAT | O_EXCL, 0700, 1);
+
+    sem_unlink("STATS_SEM");
+    stats_sem = sem_open("STATS_SEM", O_CREAT | O_EXCL, 0700, 1);
+
+    sem_unlink("SHARED_VAR_SEM");
+    shared_var_sem = sem_open("SIGINT_SEM", O_CREAT | O_EXCL, 0700, 1);
+
+
 
     // open log file
     log_file = fopen(log_file_name, "a");
@@ -501,11 +544,6 @@ int main(int argc, char *argv[]) {
 
     printf("ola\n");
 
-    // ---------- Mutex Semaphore ---------- //
-
-    mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
-
-
     // ---------- Leitura config file ---------- //
     char line[BUFFER_LEN];
     char *ptr;
@@ -513,7 +551,6 @@ int main(int argc, char *argv[]) {
     
     if (config_file == NULL) {
         write_log("Error config config_file doesn't exist");
-        exit(1);
     }
     printf("a");
     if (fgets(line, BUFFER_LEN, config_file) != NULL) {
@@ -613,16 +650,6 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    // ---------- Start thread scheduler ---------- //
-
-    if ((thread_sch_id = fork()) == 0) {
-        write_log("TRHEAD SCHEDULER STARTING");
-        Maintenance_Manager();
-    }
-    else if (thread_sch_id == -1) {
-        write_log("ERROR CREATING TRHEAD SCHEDULER PROCESS");
-        exit(1);
-    }
 
     printf("adeus");
 
