@@ -488,7 +488,7 @@ void clean_resources() {
 // ---------- Init SHM ---------- //
 
 void init_shm() {
-    if ((shmid = shmget(IPC_PRIVATE, (sizeof(EdgeServer) * EDGE_SERVER_NUMBER), IPC_CREAT)) < 0) {
+    if ((shmid = shmget(IPC_PRIVATE, (sizeof(EdgeServer) * EDGE_SERVER_NUMBER), IPC_CREAT | 0766)) < 0) {
         write_log("Shmget error");
         exit(0);
     }
