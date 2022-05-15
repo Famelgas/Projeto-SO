@@ -29,8 +29,8 @@ void Task_Manager() {
             write_log("Error starting Edge Server process");
         }
         
-        sem_wait(shared_var_sem);
-        sem_post(shared_var_sem);
+
+
 
     }
 
@@ -87,7 +87,7 @@ void Task_Manager() {
             str = "";
         }
         
-        sem_wait(shared_var_sem);
+
         for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
             pipe(shared_var[i].fd_unnamed);
             close(shared_var[i].fd_unnamed[0]);
@@ -100,7 +100,7 @@ void Task_Manager() {
             
             close(shared_var[i].fd_unnamed[1]);
         }
-        sem_post(shared_var_sem);
+
     }
 
     pthread_join(threads[0], NULL);
@@ -110,19 +110,19 @@ void Task_Manager() {
 
 
 void Edge_Server(int id) {
-    sem_wait(shared_var_sem);
+
 
     shared_var[id].tasks_completed = 0;
     shared_var[id].vCPU1_full = FREE;
     shared_var[id].vCPU2_full = FREE;
 
-    sem_post(shared_var_sem);
+
 
     char id_string[BUFFER_LEN];
     sprintf(id_string, "%d", id);
 
     while (end_processes == 1) {
-        sem_wait(shared_var_sem);
+
         Task task;
         close(shared_var[id].fd_unnamed[1]);
 
@@ -209,7 +209,7 @@ void Edge_Server(int id) {
             shared_var[id].next_task_time_vCPU2 = 0;
 
         }
-        sem_post(shared_var_sem);
+
 
     }
     exit(0);
@@ -218,7 +218,7 @@ void Edge_Server(int id) {
 
 void Monitor() {
     while (end_processes == 1) {
-        sem_wait(shared_var_sem);
+
         if ((sizeof(task_queue) / QUEUE_POS) > (0.8 * QUEUE_POS) && task_queue[0].max_execution_time > MAX_WAIT) {
             while ((sizeof(task_queue) / QUEUE_POS) > (0.2 * QUEUE_POS)) {
                 for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
@@ -235,7 +235,7 @@ void Monitor() {
         else {
             continue;
         }
-        sem_post(shared_var_sem);
+
     }
     exit(0);
 }
@@ -272,12 +272,12 @@ void Maintenance_Manager() {
 
 void *slow_vCPU(int id) {
     while(1) {
-        pthread_mutex_lock(shared_var[id].slow_vCPU_mutex);
+        pthread_mutex_lock(&slow_vCPU_mutex);
         long wait = (shared_var[id].instruction_number * 1000) / (shared_var[id].processing_power_vCPU1 * 1000000);
         shared_var[id].vCPU1_full = FULL;
         sleep(wait);
         shared_var[id].vCPU1_full = FREE;
-        pthread_mutex_unlock(shared_var[id].slow_vCPU_mutex);
+        pthread_mutex_unlock(&slow_vCPU_mutex);
         pthread_exit(NULL);
     }
 
@@ -287,12 +287,12 @@ void *slow_vCPU(int id) {
 
 void *fast_vCPU(int id) {
     while(1) {
-        pthread_mutex_lock(shared_var[id].fast_vCPU_mutex);
+        pthread_mutex_lock(&fast_vCPU_mutex);
         long wait = (shared_var[id].instruction_number * 1000) / (shared_var[id].processing_power_vCPU2 * 1000000);
         shared_var[id].vCPU2_full = FULL;
         sleep(wait);
         shared_var[id].vCPU2_full = FREE;
-        pthread_mutex_unlock(shared_var[id].fast_vCPU_mutex);
+        pthread_mutex_unlock(&fast_vCPU_mutex);
         pthread_exit(NULL);
     }
 
@@ -305,7 +305,7 @@ void *thread_scheduler() {
         for (int i = 0; i < QUEUE_POS; ++i) {
             if (task_queue[i].priority == 1) {
                 int b = 1;
-                sem_wait(shared_var_sem);
+
                 for (int e = 0; e < EDGE_SERVER_NUMBER; ++e) {
                     if (shared_var->performance == STOPPED) {
                         continue;
@@ -318,7 +318,7 @@ void *thread_scheduler() {
                         b = 0;
                     }
                 }
-                sem_post(shared_var_sem);
+
                 
                 if (b == 0) {
                     write_log("Task deleted");
@@ -359,7 +359,7 @@ void *thread_dispatcher() {
         for (int i = 0; i < QUEUE_POS; ++i) {
             if (task_queue[i].priority == 1) {
                 int b = 1;
-                sem_wait(shared_var_sem);
+
                 for (int e = 0; e < EDGE_SERVER_NUMBER; ++e) {
                     if (task_queue[i].max_execution_time > shared_var[e].next_task_time_vCPU1) {
                         b = 0;
@@ -369,7 +369,7 @@ void *thread_dispatcher() {
                         b = 0;
                     }
                 }
-                sem_post(shared_var_sem);
+
                 
                 if (b == 0) {
                     write_log("Task deleted");
@@ -394,7 +394,7 @@ void *thread_dispatcher() {
 void sigint(int signum) {
     write_log("SIGINT signal recieved");
     unlink(TASK_PIPE);
-    sem_wait(shared_var_sem);
+
     for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
         while (shared_var[i].performance > 0) {
             write_log("Task not completed");
@@ -402,7 +402,7 @@ void sigint(int signum) {
             pthread_join(shared_var[i].fast_thread, NULL);
         }
     }
-    sem_post(shared_var_sem);
+
 
     end_processes = 0;
     statistics(SIGTSTP);
@@ -413,8 +413,8 @@ void sigint(int signum) {
 
 
 void statistics(int signum) {
-    sem_wait(stats_sem);
-    sem_wait(shared_var_sem);
+
+
 
     write_log("SIGTSTP signal recieved");
 
@@ -435,8 +435,8 @@ void statistics(int signum) {
     
     printf("Non completed tasks: %ld", stats.non_completed_tasks);   
 
-    sem_post(shared_var_sem);
-    sem_post(stats_sem);
+
+
 
 }
 
@@ -450,13 +450,15 @@ void write_log(char *str) {
 void clean_resources() {
     fclose(config_file);
     fclose(log_file);
+
+    shmdt(shared_var);
     shmctl(shmid, IPC_RMID, NULL);
+
     free(task_queue);
+
     msgctl(mqid, IPC_RMID, 0);
     unlink(TASK_PIPE);
-    sem_unlink("WRITING_SEM");
-    sem_unlink("STATS_SEM");
-    sem_unlink("SHARED_VAR_SEM");
+
     kill(0, SIGTERM);
     exit(0);
 }
@@ -470,12 +472,12 @@ void init_shm() {
         exit(0);
     }
 
-    sem_wait(shared_var_sem);
+
     if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0)) == (EdgeServer *) - 1) {
         write_log("Shmat error");
         exit(1);
     }
-    sem_post(shared_var_sem);
+
 }
 
 
@@ -490,17 +492,6 @@ int main() {
 
     end_processes = 1;
     servers_down = 0;
-    // ---------- Named Semaphore ---------- //
-
-    sem_unlink("WRITING_SEM");
-    writing_sem = sem_open("WRITING_SEM", O_CREAT | O_EXCL, 0700, 1);
-
-    sem_unlink("STATS_SEM");
-    stats_sem = sem_open("STATS_SEM", O_CREAT | O_EXCL, 0700, 1);
-
-    sem_unlink("SHARED_VAR_SEM");
-    shared_var_sem = sem_open("SIGINT_SEM", O_CREAT | O_EXCL, 0700, 1);
-
 
     // open log file
     log_file = fopen(log_file_name, "a");

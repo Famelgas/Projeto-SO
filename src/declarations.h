@@ -52,7 +52,6 @@
 
 typedef struct EdgeServer {
     pthread_t slow_thread, fast_thread;
-    pthread_mutex_t *slow_vCPU_mutex, *fast_vCPU_mutex;
     long tasks_completed;
     int num_maintenance;
     int fd_unnamed[2];
@@ -117,10 +116,12 @@ FILE *config_file;
 
 // ---------- Semaphores and Mutexes ---------- //
 
-sem_t *shared_var_sem;
-sem_t *stats_sem, *writing_sem;
+pthread_mutex_t slow_vCPU_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t fast_vCPU_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t thread_dispatcher_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t thread_scheduler_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 pthread_mutex_t *mutex;
-pthread_mutex_t *thread_dispatcher_mutex, *thread_scheduler_mutex;
 
 int servers_down;
 pthread_cond_t servers_up = PTHREAD_COND_INITIALIZER;
