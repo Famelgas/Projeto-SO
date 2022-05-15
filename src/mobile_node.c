@@ -21,7 +21,11 @@
 #include <signal.h>
 
 
-void mobile_node(int fd_task_pipe, char *request_number, char *interval_time, char *instruction_number, char *max_execution_time) {
+
+int fd_task_pipe;
+
+
+void mobile_node(char *request_number, char *interval_time, char *instruction_number, char *max_execution_time) {
     int request_num = atoi(request_number);
     int interval = atoi(interval_time);
     for (int i = 0; i < request_num; ++i) {
@@ -33,7 +37,7 @@ void mobile_node(int fd_task_pipe, char *request_number, char *interval_time, ch
         strcat(task, ";");
         strcat(task, max_execution_time);
         write(fd_task_pipe, task, sizeof(task));
-        sleep(interval);
+        usleep(interval * 1000);
     }
 
     exit(0);
@@ -41,9 +45,9 @@ void mobile_node(int fd_task_pipe, char *request_number, char *interval_time, ch
 
 int main(int argc, char *argv[]) {
     // task_pipe write only
-    int fd_task_pipe;
     if ((fd_task_pipe = open("TASK_PIPE", O_WRONLY)) < 0) {
-        perror("Error openibng TASK_PIPE for writing");
+        printf("a");
+        perror("Error opening TASK_PIPE for writing");
         exit(0);
     }
 
@@ -60,7 +64,7 @@ int main(int argc, char *argv[]) {
     char *max_execution_time = argv[4];
 
     if (fork() == 0) {
-        mobile_node(fd_task_pipe, request_number, interval_time, instruction_number, max_execution_time);
+        mobile_node(request_number, interval_time, instruction_number, max_execution_time);
         exit(0);
     }
 

@@ -104,7 +104,7 @@ int shmid;
 pid_t task_manager_id, maintenance_manager_id, monitor_id;
 int fd_task_pipe;
 
-char config_file_name[61] = "/Users/filipe/DEI/2 Ano/2 Semestre/SO/Projeto/src/config.txt";
+char config_file_name[11] = "config.txt";
 char log_file_name[13] = "log_file.txt";
 
 FILE *log_file;

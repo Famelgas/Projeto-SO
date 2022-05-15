@@ -502,7 +502,6 @@ void clean_resources() {
 
 
 int main() {
-    printf("i");
     signal(SIGINT, sigint);
     signal(SIGTSTP, statistics);
 
@@ -540,74 +539,81 @@ int main() {
         perror("Error creating TASK_PIPE");
         exit(0);
     }
-    printf("a");
-    printf("ola");
-    printf("ad");
 
 
-
-    // ---------- Leitura config file ---------- //
-    
-
-    size_t buf_size = BUFFER_LEN, line_num = 100;
-    char *line;
-    char *ptr;
-    
-    if ((config_file = fopen(config_file_name, "r")) == NULL) {
-        write_log("Error config config_file doesn't exist");
-    }
-    if (getline(&line, &buf_size, config_file) != -1) {
-        QUEUE_POS = strtol(line, &ptr, 10);
-    }
-    else {
-        write_log("Error in config config_file: QUEUE_POS");
-        exit(1);
-    }
-
-    if (getline(&line, &buf_size, config_file) != -1) {
-        MAX_WAIT = strtol(line, &ptr, 10);
-    }
-    else {
-        write_log("Error in config config_file: MAX_WAIT");
-        exit(1);
-    }
-
-    if (getline(&line, &buf_size, config_file) != -1) {
-        EDGE_SERVER_NUMBER = strtol(line, &ptr, 10);
-    }
-    else {
-        write_log("Error in config config_file: EDGE_SERVER_NUMBER");
-        exit(1);
-    }
-
-    if (EDGE_SERVER_NUMBER < 2) {
-        write_log("Error in config config_file: EDGE_SERVER_NUMBER < 2");
-        exit(1);
-    }
-
-    char *edge_server[3];
-
-    printf("shm");
     // ---------- Create shared memory ---------- //
     
     EdgeServer *shared_var = malloc(sizeof(EdgeServer) * EDGE_SERVER_NUMBER);
     shmid = shmget(IPC_PRIVATE, sizeof(&shared_var), IPC_CREAT); 
 
-    // ---------- Reading server info ---------- //
-    int t = 0;
-    for (int i = 0; (getline(&line, &line_num, config_file)) != -1; ++i) {
-        char *token = strtok(line, ",");
-        while (token != NULL) {
-            edge_server[t] = token;
-            token = strtok(NULL, ",");
-            ++t;
-        }
-        shared_var[i].name = edge_server[0];
-        shared_var[i].processing_power_vCPU1 = strtol(edge_server[1], &ptr, 10);
-        shared_var[i].processing_power_vCPU2 = strtol(edge_server[2], &ptr, 10);
+
+
+    // ---------- Leitura config file ---------- //
+    
+    char *buf = NULL;
+    size_t len = 0;
+    int count = 0;
+
+    if ((config_file = fopen(config_file_name, "r")) == NULL) {
+        write_log("Error config config_file doesn't exist");
     }
 
-    printf("meio");
+    //Leitura do config file
+    while (getline(&buf, &len, config_file) != -1) {
+        int i = 0;
+
+        if (count < 3) {
+            switch (count) {
+                case 0:
+                    QUEUE_POS = atoi(buf);
+                    break;
+                case 1:
+                    MAX_WAIT = atoi(buf);
+                    break;
+
+                case 2:
+                    EDGE_SERVER_NUMBER = atoi(buf);
+                    if (EDGE_SERVER_NUMBER < 2) {
+                        write_log("Error in config config_file: EDGE_SERVER_NUMBER < 2");
+                        exit(1);
+                    }
+                    break;
+
+                default:
+                    write_log("Error reading config_file");
+                    exit(1);
+            }
+        }
+        else if (count >= 3) {
+            char *token = strtok(buf, ",");
+            while (token != NULL) {
+                switch (i) {
+                    case 0:
+                        shared_var[i].name = token;
+                        break;
+                        
+                    case 1:
+                        shared_var[i].processing_power_vCPU1 = atoi(token);
+                        break;
+
+                    case 2:
+                        shared_var[i].processing_power_vCPU2 = atoi(token);
+                        break;
+
+                    default:
+                        write_log("Error reading config_file: server info");
+                        exit(1);
+                }
+                i++;
+                token = strtok(NULL, ",");
+            }
+        }
+        else {
+            break;
+        }
+        count++;
+    }
+
     
     // ---------- Start task manager ---------- //
 
@@ -642,8 +648,10 @@ int main() {
         exit(1);
     }
 
-
-    printf("adeus");
+    while (end_processes == 1) {
+        signal(SIGINT, sigint);
+        signal(SIGTSTP, statistics);
+    }
 
     return 0;
 }
