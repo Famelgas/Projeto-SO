@@ -28,7 +28,7 @@
 
 // ---------- Defines ---------- //
 
-#define TASK_PIPE "/Users/filipe/DEI/2 Ano/2 Semestre/SO/Projeto/src/TASK_PIPE"
+#define TASK_PIPE "TASK_PIPE"
 #define EXIT "EXIT"
 #define STATS "STATS"
 
@@ -40,6 +40,10 @@
 #define STOPPED 0
 #define NORMAL 1
 #define HIGH 2
+
+#define MAINTENANCE 1
+#define READY 2
+#define CONTINUE 3
 
 
 
@@ -71,9 +75,7 @@ typedef struct Task {
 } Task;
 
 typedef struct MessageQueue {
-    char *string;
-    struct MessageQueue *next;
-    struct MessageQueue *previous;
+    long msg;
 } MessageQueue;
 
 typedef struct Stats {
@@ -96,11 +98,12 @@ EdgeServer *shared_var;
 Stats stats;
 
 Task *task_queue;
-MessageQueue *message_queue;
+MessageQueue message_queue;
 
+int mqid;
+int shmid;
 int end_processes;
 int num_servers_down;
-int shmid;
 pid_t task_manager_id, maintenance_manager_id, monitor_id;
 int fd_task_pipe;
 
@@ -119,7 +122,7 @@ sem_t *stats_sem, *writing_sem;
 pthread_mutex_t *mutex;
 pthread_mutex_t *thread_dispatcher_mutex, *thread_scheduler_mutex;
 
-pthread_cond_t servers_down = PTHREAD_COND_INITIALIZER;
+int servers_down;
 pthread_cond_t servers_up = PTHREAD_COND_INITIALIZER;
 pthread_cond_t maintenance_ready = PTHREAD_COND_INITIALIZER;
 

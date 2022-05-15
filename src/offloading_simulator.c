@@ -127,55 +127,25 @@ void Edge_Server(int id) {
         close(shared_var[id].fd_unnamed[1]);
 
         while (read(shared_var[id].fd_unnamed[0], &task, sizeof(task)) > 0) {
-            if (message_queue != NULL && message_queue->string == id_string) {
-                message_queue = message_queue->previous;
+            
+            if (msgrcv(mqid, &message_queue, sizeof(MessageQueue), id, IPC_NOWAIT) != -1) {
                 int previous_performance;
-
                 while (shared_var[id].vCPU1_full != FREE || shared_var[id].vCPU2_full != FREE) {
                     continue;
                 }
+                message_queue.msg = READY;
+                msgsnd(mqid, &message_queue, sizeof(MessageQueue), 0);
+                msgrcv(mqid, &message_queue, sizeof(MessageQueue), id, 0);
 
-                if (shared_var[id].vCPU1_full == FREE && shared_var[id].vCPU2_full == FREE) {
-                    message_queue->string = "ready";
-                    
-                    if (message_queue->previous != NULL) {
-                        message_queue = message_queue->previous;
-                    }
-                    else {
-                        free(message_queue);
-                    }
-                    
-                    if (message_queue->next != NULL) {
-                        message_queue = message_queue->next;
-                    }
-                    else {
-                        free(message_queue);
-                    }
-                    message_queue->previous = message_queue;
-
-                    previous_performance = shared_var[id].performance;
-                    shared_var[id].performance = STOPPED;
-                    write_log("Maintenance");
-                    sleep(rand() % 5 + 1);
-
-                    shared_var[id].performance = previous_performance;
-
-                    if (message_queue->previous != NULL) {
-                        message_queue = message_queue->previous;
-                    }
-                    else {
-                        free(message_queue);
-                    }
-                    
-                    if (message_queue->next != NULL) {
-                        message_queue = message_queue->next;
-                    }
-                    else {
-                        free(message_queue);
-                    }
-
-                }
+                previous_performance = shared_var[id].performance;
+                shared_var[id].performance = STOPPED;
+                servers_down++;
+                write_log("Maintenance");
+                sleep(rand() % 5 + 1);
+                shared_var[id].performance = previous_performance;
+                servers_down--;
             }
+            
 
             if (shared_var[id].performance == STOPPED) {
                 continue;
@@ -272,20 +242,26 @@ void Monitor() {
 
 
 void Maintenance_Manager() {
+    int msg = rand() % EDGE_SERVER_NUMBER + 1;
+    message_queue.msg = msg;
+
     while (end_processes == 1) {
-        if (message_queue == NULL) {
-            sprintf(message_queue->string, "%ld", rand() % EDGE_SERVER_NUMBER + 1);
-            message_queue->previous = message_queue;
-            message_queue = message_queue->next;
+        while (servers_down == EDGE_SERVER_NUMBER - 1) {
+            continue;
         }
+        
+        msgsnd(mqid, &message_queue, sizeof(MessageQueue), 0);
 
-        else {
-            message_queue->string = "continue";
-            message_queue->previous = message_queue;
-            message_queue = message_queue->next;
-        }
+        msgrcv(mqid, &message_queue, sizeof(MessageQueue), READY, 0);
 
+        message_queue.msg = msg;
+        msgsnd(mqid, &message_queue, sizeof(MessageQueue), 0);
+
+
+        msg = rand() % EDGE_SERVER_NUMBER + 1;
+        message_queue.msg = msg;
         sleep(rand() % 5 + 1);
+ 
     }
     exit(0);
 }
@@ -466,22 +442,23 @@ void statistics(int signum) {
 
 
 void write_log(char *str) {
-    sem_wait(writing_sem);
     fprintf(log_file, "%s\n", str);
     fflush(log_file);
-    sem_post(writing_sem);
 }
 
 
 void clean_resources() {
     fclose(config_file);
     fclose(log_file);
-    shmdt(shared_var);
+    shmctl(shmid, IPC_RMID, NULL);
     free(task_queue);
+    msgctl(mqid, IPC_RMID, 0);
     unlink(TASK_PIPE);
     sem_unlink("WRITING_SEM");
     sem_unlink("STATS_SEM");
     sem_unlink("SHARED_VAR_SEM");
+    kill(0, SIGTERM);
+    exit(0);
 }
 
 
@@ -512,6 +489,7 @@ int main() {
     signal(SIGTSTP, statistics);
 
     end_processes = 1;
+    servers_down = 0;
     // ---------- Named Semaphore ---------- //
 
     sem_unlink("WRITING_SEM");
@@ -545,6 +523,16 @@ int main() {
         perror("Error creating TASK_PIPE");
         exit(0);
     }
+
+
+    // ---------- Message Queue ---------- //
+
+    
+    if ((mqid = msgget(IPC_PRIVATE, IPC_CREAT|0777)) < 0) {
+      write_log("Error creating message queue");
+      exit(0);
+    }
+
 
 
     // ---------- Leitura config file ---------- //
