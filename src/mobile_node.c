@@ -29,15 +29,24 @@ void mobile_node(char *request_number, char *interval_time, char *instruction_nu
     int request_num = atoi(request_number);
     int interval = atoi(interval_time);
     for (int i = 0; i < request_num; ++i) {
-        int id = i;
-        char *task = "";
-        sprintf(task, "%d", id);
-        strcat(task, ";");
-        strcat(task, instruction_number);
-        strcat(task, ";");
-        strcat(task, max_execution_time);
-        write(fd_task_pipe, task, sizeof(task));
-        usleep(interval * 1000);
+        if (i == (int) request_num / 2) {
+            write(fd_task_pipe, "STATS", 6);
+        }
+
+        else if (i == request_num - 5) {
+            write(fd_task_pipe, "EXIT", 5);
+        }
+        else {
+            int id = i;
+            char *task = "";
+            sprintf(task, "%d", id);
+            strcat(task, ";");
+            strcat(task, instruction_number);
+            strcat(task, ";");
+            strcat(task, max_execution_time);
+            write(fd_task_pipe, task, sizeof(task));
+            usleep(interval * 1000);
+        }
     }
 
     exit(0);

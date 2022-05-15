@@ -28,7 +28,7 @@
 
 // ---------- Defines ---------- //
 
-#define TASK_PIPE "TASK_PIPE"
+#define TASK_PIPE "/Users/filipe/DEI/2 Ano/2 Semestre/SO/Projeto/src/TASK_PIPE"
 #define EXIT "EXIT"
 #define STATS "STATS"
 

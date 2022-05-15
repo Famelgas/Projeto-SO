@@ -19,13 +19,6 @@ void Task_Manager() {
     pthread_t threads[2];
     int thread_id[2];
 
-    sem_wait(shared_var_sem);
-    if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0)) == (EdgeServer *) - 1) {
-        write_log("Shmat error");
-        exit(1);
-    }
-    sem_post(shared_var_sem);
-
 
     for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
         if (fork() == 0) {
@@ -118,10 +111,6 @@ void Task_Manager() {
 
 void Edge_Server(int id) {
     sem_wait(shared_var_sem);
-    if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0)) == (struct EdgeServer *) -1) {
-        write_log("Shmat error!");
-        exit(1);
-    }
 
     shared_var[id].tasks_completed = 0;
     shared_var[id].vCPU1_full = FREE;
@@ -496,6 +485,23 @@ void clean_resources() {
 }
 
 
+// ---------- Init SHM ---------- //
+
+void init_shm() {
+    if ((shmid = shmget(IPC_PRIVATE, (sizeof(EdgeServer) * EDGE_SERVER_NUMBER), IPC_CREAT)) < 0) {
+        write_log("Shmget error");
+        exit(0);
+    }
+
+    sem_wait(shared_var_sem);
+    if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0)) == (EdgeServer *) - 1) {
+        write_log("Shmat error");
+        exit(1);
+    }
+    sem_post(shared_var_sem);
+}
+
+
 
 // ---------- Main ---------- //
 
@@ -541,13 +547,6 @@ int main() {
     }
 
 
-    // ---------- Create shared memory ---------- //
-    
-    EdgeServer *shared_var = malloc(sizeof(EdgeServer) * EDGE_SERVER_NUMBER);
-    shmid = shmget(IPC_PRIVATE, sizeof(&shared_var), IPC_CREAT); 
-
-
-
     // ---------- Leitura config file ---------- //
     
     char *buf = NULL;
@@ -577,6 +576,8 @@ int main() {
                         write_log("Error in config config_file: EDGE_SERVER_NUMBER < 2");
                         exit(1);
                     }
+
+                    init_shm();
                     break;
 
                 default:
