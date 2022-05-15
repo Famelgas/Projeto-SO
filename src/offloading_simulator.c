@@ -75,7 +75,7 @@ void Task_Manager() {
             
             while (token != NULL) {
                 str_task[t] = token;
-                token = strtok(str, ";");
+                token = strtok(NULL, ";");
             }
 
             task.task_id = atoi(str_task[0]);
@@ -501,12 +501,12 @@ void clean_resources() {
 
 
 
-int main(int argc, char *argv[]) {
+int main() {
+    printf("i");
     signal(SIGINT, sigint);
     signal(SIGTSTP, statistics);
 
     end_processes = 1;
-    config_file_name = argv[1];
     // ---------- Named Semaphore ---------- //
 
     sem_unlink("WRITING_SEM");
@@ -517,7 +517,6 @@ int main(int argc, char *argv[]) {
 
     sem_unlink("SHARED_VAR_SEM");
     shared_var_sem = sem_open("SIGINT_SEM", O_CREAT | O_EXCL, 0700, 1);
-
 
 
     // open log file
@@ -541,19 +540,23 @@ int main(int argc, char *argv[]) {
         perror("Error creating TASK_PIPE");
         exit(0);
     }
+    printf("a");
+    printf("ola");
+    printf("ad");
 
-    printf("ola\n");
+
 
     // ---------- Leitura config file ---------- //
-    char line[BUFFER_LEN];
-    char *ptr;
-    config_file = fopen(config_file_name, "r");
     
-    if (config_file == NULL) {
+
+    size_t buf_size = BUFFER_LEN, line_num = 100;
+    char *line;
+    char *ptr;
+    
+    if ((config_file = fopen(config_file_name, "r")) == NULL) {
         write_log("Error config config_file doesn't exist");
     }
-    printf("a");
-    if (fgets(line, BUFFER_LEN, config_file) != NULL) {
+    if (getline(&line, &buf_size, config_file) != -1) {
         QUEUE_POS = strtol(line, &ptr, 10);
     }
     else {
@@ -561,7 +564,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    if (fgets(line, BUFFER_LEN, config_file) != NULL) {
+    if (getline(&line, &buf_size, config_file) != -1) {
         MAX_WAIT = strtol(line, &ptr, 10);
     }
     else {
@@ -569,7 +572,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    if (fgets(line, BUFFER_LEN, config_file) != NULL) {
+    if (getline(&line, &buf_size, config_file) != -1) {
         EDGE_SERVER_NUMBER = strtol(line, &ptr, 10);
     }
     else {
@@ -582,38 +585,27 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    char *edge_server[EDGE_SERVER_NUMBER][3];
-    char *temp_edge_server[EDGE_SERVER_NUMBER];
+    char *edge_server[3];
 
     printf("shm");
     // ---------- Create shared memory ---------- //
     
-    EdgeServer *temp_shared_var = malloc(sizeof(EdgeServer));
-    shared_var = realloc(temp_shared_var, EDGE_SERVER_NUMBER * sizeof(EdgeServer));
+    EdgeServer *shared_var = malloc(sizeof(EdgeServer) * EDGE_SERVER_NUMBER);
     shmid = shmget(IPC_PRIVATE, sizeof(&shared_var), IPC_CREAT); 
 
     // ---------- Reading server info ---------- //
-
-    for (int i = 0; (fgets(line, 100, config_file)) != NULL; ++i) {
-        temp_edge_server[i] = line;
-    }
-
     int t = 0;
-    for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
-        char *token = strtok(temp_edge_server[i], ",");
+    for (int i = 0; (getline(&line, &line_num, config_file)) != -1; ++i) {
+        char *token = strtok(line, ",");
         while (token != NULL) {
-            edge_server[i][t] = token;
+            edge_server[t] = token;
+            token = strtok(NULL, ",");
             ++t;
         }
-        t = 0;
+        shared_var[i].name = edge_server[0];
+        shared_var[i].processing_power_vCPU1 = strtol(edge_server[1], &ptr, 10);
+        shared_var[i].processing_power_vCPU2 = strtol(edge_server[2], &ptr, 10);
     }
-    
-    for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
-        shared_var->processing_power_vCPU1 = strtol(edge_server[i][1], &ptr, 10);
-        shared_var->processing_power_vCPU2 = strtol(edge_server[i][2], &ptr, 10);
-    }
-
-    free(temp_shared_var);
 
     printf("meio");
     

@@ -10,7 +10,7 @@ make all --print-data-base --no-builtin-variables --no-builtin-rules --question
 make: *** No rule to make target `all'.  Stop.
 
 
-# Make data base, printed on Fri May 13 14:49:46 2022
+# Make data base, printed on Sun May 15 00:25:19 2022
 
 # Variables
 
@@ -41,7 +41,7 @@ VSCODE_VERBOSE_LOGGING = true
 # environment
 __CFBundleIdentifier = com.microsoft.VSCode
 # environment
-VSCODE_IPC_HOOK_EXTHOST = /var/folders/2g/cp2f0rb50l96z12nt9k03nhw0000gn/T/vscode-ipc-1469afd6-15bf-4a3b-808e-e8607629cdd9.sock
+VSCODE_IPC_HOOK_EXTHOST = /var/folders/2g/cp2f0rb50l96z12nt9k03nhw0000gn/T/vscode-ipc-5001c5cc-aa16-49be-8199-e7e74f320fac.sock
 # environment
 VSCODE_CWD = /
 # environment
@@ -55,7 +55,7 @@ ELECTRON_RUN_AS_NODE = 1
 # default
 .FEATURES := target-specific order-only second-expansion else-if archives jobserver check-symlink
 # environment
-SSH_AUTH_SOCK = /private/tmp/com.apple.launchd.S9hoHchBMG/Listeners
+SSH_AUTH_SOCK = /private/tmp/com.apple.launchd.qLBIUYp2vL/Listeners
 # automatic
 %F = $(notdir $%)
 # environment
@@ -143,14 +143,13 @@ MAKELEVEL := 0
 # environment
 LANG = C
 # environment
-VSCODE_PID = 4445
+VSCODE_PID = 810
 # variable set hash-table stats:
 # Load=65/1024=6%, Rehash=0, Collisions=1/85=1%
 
 # Pattern-specific Variable Values
 
 # No pattern-specific variable values.
- 
 
 # Directories
 
@@ -160,6 +159,7 @@ VSCODE_PID = 4445
 
 # Implicit Rules
 
+ 
 # No implicit rules.
 
 # Files
@@ -228,6 +228,6 @@ GNUmakefile:
 # strcache size: total = 0 / max = 0 / min = 4096 / avg = 0
 # strcache free: total = 0 / max = 0 / min = 4096 / avg = 0
 
-# Finished Make data base on Fri May 13 14:49:46 2022
+# Finished Make data base on Sun May 15 00:25:19 2022
 
  
