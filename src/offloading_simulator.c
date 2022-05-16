@@ -629,5 +629,7 @@ int main() {
         signal(SIGTSTP, statistics);
     }
 
+    printf("a");
+
     return 0;
 }
