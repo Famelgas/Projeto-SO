@@ -23,7 +23,7 @@ void Task_Manager() {
     for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
         if (fork() == 0) {
             Edge_Server(i);
-
+            exit(0);
         }
         else {
             write_log("Error starting Edge Server process");
@@ -35,7 +35,7 @@ void Task_Manager() {
     }
 
     pthread_create(&threads[0], NULL, thread_scheduler, &thread_id[0]);
-    pthread_create(&threads[1], NULL, thread_scheduler, &thread_id[1]);
+    pthread_create(&threads[1], NULL, thread_dispatcher, &thread_id[1]);
 
 
     // task_pipe read only
@@ -414,8 +414,6 @@ void sigint(int signum) {
 
 void statistics(int signum) {
 
-
-
     write_log("SIGTSTP signal recieved");
 
     if ((shared_var = (EdgeServer *) shmat(shmid, NULL, 0)) == (struct EdgeServer *) -1) {
@@ -434,8 +432,6 @@ void statistics(int signum) {
     }
     
     printf("Non completed tasks: %ld", stats.non_completed_tasks);   
-
-
 
 
 }

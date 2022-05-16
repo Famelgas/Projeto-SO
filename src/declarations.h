@@ -121,11 +121,7 @@ pthread_mutex_t fast_vCPU_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t thread_dispatcher_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t thread_scheduler_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-pthread_mutex_t *mutex;
-
 int servers_down;
-pthread_cond_t servers_up = PTHREAD_COND_INITIALIZER;
-pthread_cond_t maintenance_ready = PTHREAD_COND_INITIALIZER;
 
 
 // ---------- Processes ---------- //
