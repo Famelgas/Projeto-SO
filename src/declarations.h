@@ -148,6 +148,8 @@ void *thread_dispatcher();
 
 void write_log(char *str);
 
+void write_screen(char *str);
+
 void clean_resources();
 
 void sigint(int signum);

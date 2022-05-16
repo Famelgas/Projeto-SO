@@ -108,13 +108,12 @@ void Edge_Server(int id) {
     shared_var[id].tasks_completed = 0;
     shared_var[id].vCPU1_full = FREE;
     shared_var[id].vCPU2_full = FREE;
-
-
+	
+    statistics(SIGTSTP);
 
     char id_string[BUFFER_LEN];
     sprintf(id_string, "%d", id);
     while (end_processes == 1) {
-        statistics(SIGTSTP);
         Task task;
         close(shared_var[id].fd_unnamed[1]);
 
@@ -412,20 +411,37 @@ void statistics(int signum) {
         write_log("Shmat error!");
         exit(1);
     }
-
-    printf("Total tasks completed: %ld", stats.tasks_completed);
-
-    // implementar tempo medio de execuçao por tarefa
-    printf("Average task response time: %ld", stats.average_response_time);
+    
+    char total[128];
+    sprintf(total, "%ld", stats.tasks_completed);
+    char str1[] = "Total tasks completed: ";
+    strcat(str1, total);
+    write_screen(str1);
+    
+    
+    char average[128];
+    sprintf(average, "%ld", stats.average_response_time);
+    char str2[] = "Average task response time: ";
+    strcat(str2, average);
+    write_screen(str2);
 
 
     for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
-        printf("Tasks completed by edge server %s: %ld", shared_var[i].name, shared_var[i].tasks_completed);
+    	char total_es[128];
+    	sprintf(total_es, "%ld", shared_var[i].tasks_completed);
+    	char str3[] = "Tasks completed by edge server ";
+    	strcat(str3, shared_var[i].name);
+    	strcat(str3, ": ");
+    	strcat(str3, total_es);
+        write_screen(str3);
     }
     
-    printf("Non completed tasks: %ld", stats.non_completed_tasks);   
-
-
+    
+    char non_completed[128];
+    sprintf(non_completed, "%ld", stats.non_completed_tasks);
+    char str4[] = "Non completed tasks: ";
+    strcat(str4, non_completed);
+    write_screen(str4);
 }
 
 
