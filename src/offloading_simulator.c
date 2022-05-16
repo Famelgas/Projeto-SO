@@ -1,5 +1,4 @@
 // Filipe David Amado Mendes, 2020218797
-// Miguel Ângelo Graça Meneses, 2020221791
 
 #include "declarations.h"
 
@@ -19,23 +18,14 @@ void Task_Manager() {
     pthread_t threads[2];
     int thread_id[2];
 
-
     for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
         if (fork() == 0) {
             Edge_Server(i);
             exit(0);
         }
-        else {
-            write_log("Error starting Edge Server process");
-        }
-        
-
-
-
     }
 
-    pthread_create(&threads[0], NULL, thread_scheduler, &thread_id[0]);
-    pthread_create(&threads[1], NULL, thread_dispatcher, &thread_id[1]);
+    
 
 
     // task_pipe read only
@@ -45,6 +35,8 @@ void Task_Manager() {
     }
 
     while (end_processes == 1) {
+    	pthread_create(&threads[0], NULL, thread_scheduler, &thread_id[0]);
+    	pthread_create(&threads[1], NULL, thread_dispatcher, &thread_id[1]);
         Task task;
         char *str;
         char *ptr;
@@ -100,17 +92,18 @@ void Task_Manager() {
             
             close(shared_var[i].fd_unnamed[1]);
         }
-
+	pthread_join(threads[0], NULL);
+    	pthread_join(threads[1], NULL);
     }
 
-    pthread_join(threads[0], NULL);
-    pthread_join(threads[1], NULL);
+    
     exit(0);
 }
 
 
 void Edge_Server(int id) {
 
+    write_log("es criado");
 
     shared_var[id].tasks_completed = 0;
     shared_var[id].vCPU1_full = FREE;
@@ -244,7 +237,7 @@ void Monitor() {
 void Maintenance_Manager() {
     int msg = rand() % EDGE_SERVER_NUMBER + 1;
     message_queue.msg = msg;
-
+	printf("ep: %d", end_processes);
     while (end_processes == 1) {
         while (servers_down == EDGE_SERVER_NUMBER - 1) {
             continue;
@@ -455,7 +448,6 @@ void clean_resources() {
     msgctl(mqid, IPC_RMID, 0);
     unlink(TASK_PIPE);
 
-    kill(0, SIGTERM);
     exit(0);
 }
 
@@ -463,7 +455,7 @@ void clean_resources() {
 // ---------- Init SHM ---------- //
 
 void init_shm() {
-    if ((shmid = shmget(IPC_PRIVATE, (sizeof(EdgeServer) * EDGE_SERVER_NUMBER), IPC_CREAT | 0766)) < 0) {
+    if ((shmid = shmget(IPC_PRIVATE, (sizeof(EdgeServer) * EDGE_SERVER_NUMBER + end_processes), IPC_CREAT | 0644 | IPC_EXCL)) < 0) {
         write_log("Shmget error");
         exit(0);
     }
@@ -486,7 +478,7 @@ int main() {
     signal(SIGINT, sigint);
     signal(SIGTSTP, statistics);
 
-    end_processes = 1;
+    
     servers_down = 0;
 
     // open log file
@@ -590,46 +582,29 @@ int main() {
         count++;
     }
 
-    
+    end_processes = 1;
     // ---------- Start task manager ---------- //
 
-    if ((task_manager_id = fork()) == 0) {
-        write_log("TASK MANAGER STARTING");
+    if (fork() == 0) {
         Task_Manager();
-    }
-    else if (task_manager_id == -1) {
-        write_log("ERROR STARTING TASK MANAGER PROCESS");
-        exit(1);
+        exit(0);
     }
 
+    write_log("TASK MANAGER STARTING");
     // ---------- Start maintenance manager ---------- //
 
-    if ((maintenance_manager_id = fork()) == 0) {
-        write_log("MAINTENANCE MANAGER STARTING");
+    if (fork() == 0) {
         Maintenance_Manager();
+        exit(0);
     }
-    else if (maintenance_manager_id == -1) {
-        write_log("ERROR CREATING MAINTENANCE MANAGER PROCESS");
-        exit(1);
-    }
+    write_log("MAINTENANCE MANAGER STARTING");
     
     // ---------- Start monitor ---------- //
 
-    if ((monitor_id = fork()) == 0) {
-        write_log("MONITOR STARTING");
-        Maintenance_Manager();
+    if (fork() == 0) {
+        Monitor();
+        exit(0);
     }
-    else if (monitor_id == -1) {
-        write_log("ERROR CREATING MONITOR PROCESS");
-        exit(1);
-    }
+	write_log("MONITOR STARTING");
 
-    while (end_processes == 1) {
-        signal(SIGINT, sigint);
-        signal(SIGTSTP, statistics);
-    }
-
-    printf("a");
-
-    return 0;
 }
