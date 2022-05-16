@@ -1,4 +1,6 @@
 // Filipe David Amado Mendes, 2020218797
+// Miguel Ângelo Graça Meneses, 2020221791
+
 
 #include "declarations.h"
 
@@ -31,10 +33,10 @@ void Task_Manager() {
         exit(0);
     }
 
+    pthread_create(&threads[0], NULL, thread_scheduler, &thread_id[0]);
+    pthread_create(&threads[1], NULL, thread_dispatcher, &thread_id[1]);
 
     while (end_processes == 1) {
-    	pthread_create(&threads[0], NULL, thread_scheduler, &thread_id[0]);
-    	pthread_create(&threads[1], NULL, thread_dispatcher, &thread_id[1]);
         Task task;
         char *str;
         char *ptr;
@@ -67,6 +69,7 @@ void Task_Manager() {
             
             for (int i = 0; i < QUEUE_POS; ++i) {
                 if (sizeof(task_queue) == QUEUE_POS) {
+                    write_log("Task Queue is full");
                     break;
                 }
                 if (task_queue[i].task_id == -1) {
@@ -78,7 +81,7 @@ void Task_Manager() {
         }
         
         
-	write_screen("Edge Server running");
+	    write_screen("Edge Server running");
         for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
             pipe(shared_var[i].fd_unnamed);
             close(shared_var[i].fd_unnamed[0]);
@@ -91,9 +94,9 @@ void Task_Manager() {
             
             close(shared_var[i].fd_unnamed[1]);
         }
-	pthread_join(threads[0], NULL);
-    	pthread_join(threads[1], NULL);
     }
+    pthread_join(threads[0], NULL);
+    pthread_join(threads[1], NULL);
     exit(0);
 }
 
@@ -111,6 +114,7 @@ void Edge_Server(int id) {
     char id_string[BUFFER_LEN];
     sprintf(id_string, "%d", id);
     while (end_processes == 1) {
+        statistics(SIGTSTP);
         Task task;
         close(shared_var[id].fd_unnamed[1]);
 
