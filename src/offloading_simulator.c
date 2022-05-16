@@ -25,14 +25,12 @@ void Task_Manager() {
         }
     }
 
-    
-
-
     // task_pipe read only
-    if ((fd_task_pipe = open(TASK_PIPE, O_RDONLY)) < 0) {
-        perror("Error opening TASK_PIPE for reading");
+    if ((fd_task_pipe = open(TASK_PIPE, O_RDWR | O_NONBLOCK)) < 0) {
+        write_log("Error opening TASK_PIPE for reading");
         exit(0);
     }
+
 
     while (end_processes == 1) {
     	pthread_create(&threads[0], NULL, thread_scheduler, &thread_id[0]);
@@ -40,8 +38,8 @@ void Task_Manager() {
         Task task;
         char *str;
         char *ptr;
-
-        while (read(fd_task_pipe, &str, BUFFER_LEN)) {
+	
+        while (read(fd_task_pipe, &str, BUFFER_LEN) > 0) {
             if (str == NULL) {
                 write_log("Error reading from TASK_PIPE");
                 break;
@@ -79,7 +77,8 @@ void Task_Manager() {
             str = "";
         }
         
-
+        
+	write_screen("Edge Server running");
         for (int i = 0; i < EDGE_SERVER_NUMBER; ++i) {
             pipe(shared_var[i].fd_unnamed);
             close(shared_var[i].fd_unnamed[0]);
@@ -95,15 +94,13 @@ void Task_Manager() {
 	pthread_join(threads[0], NULL);
     	pthread_join(threads[1], NULL);
     }
-
-    
     exit(0);
 }
 
 
 void Edge_Server(int id) {
 
-    write_log("es criado");
+    write_log("Edge Server created");
 
     shared_var[id].tasks_completed = 0;
     shared_var[id].vCPU1_full = FREE;
@@ -113,9 +110,7 @@ void Edge_Server(int id) {
 
     char id_string[BUFFER_LEN];
     sprintf(id_string, "%d", id);
-
     while (end_processes == 1) {
-
         Task task;
         close(shared_var[id].fd_unnamed[1]);
 
@@ -435,6 +430,10 @@ void write_log(char *str) {
     fflush(log_file);
 }
 
+void write_screen(char *str) {
+	fprintf(stdout, "%s\n", str);
+}
+
 
 void clean_resources() {
     fclose(config_file);
@@ -474,7 +473,7 @@ void init_shm() {
 
 
 
-int main() {
+int main(int argc, char *argv[]) {
     signal(SIGINT, sigint);
     signal(SIGTSTP, statistics);
 
@@ -485,7 +484,7 @@ int main() {
     log_file = fopen(log_file_name, "a");
     if (log_file == NULL)
     {
-        perror("Error opening log file\n");
+        write_log("Error opening log file\n");
         exit(1);
     }
 
@@ -499,7 +498,7 @@ int main() {
 
     unlink(TASK_PIPE);
     if ((mkfifo(TASK_PIPE, O_CREAT|O_EXCL|0600)<0) && (errno!= EEXIST)) { 
-        perror("Error creating TASK_PIPE");
+        write_log("Error creating TASK_PIPE");
         exit(0);
     }
 
@@ -520,7 +519,7 @@ int main() {
     size_t len = 0;
     int count = 0;
 
-    if ((config_file = fopen(config_file_name, "r")) == NULL) {
+    if ((config_file = fopen(argv[1], "r")) == NULL) {
         write_log("Error config config_file doesn't exist");
     }
 

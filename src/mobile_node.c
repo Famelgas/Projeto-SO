@@ -1,6 +1,4 @@
 // Filipe David Amado Mendes, 2020218797
-// Miguel Ângelo Graça Meneses, 2020221791
-
 
 
 #include <stdio.h>
@@ -54,7 +52,7 @@ void mobile_node(char *request_number, char *interval_time, char *instruction_nu
 
 int main(int argc, char *argv[]) {
     // task_pipe write only
-    if ((fd_task_pipe = open("TASK_PIPE", O_WRONLY)) < 0) {
+    if ((fd_task_pipe = open("TASK_PIPE", O_RDWR | O_NONBLOCK)) < 0) {
         printf("a");
         perror("Error opening TASK_PIPE for writing");
         exit(0);

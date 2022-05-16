@@ -106,7 +106,6 @@ int num_servers_down;
 pid_t task_manager_id, maintenance_manager_id, monitor_id;
 int fd_task_pipe;
 
-char config_file_name[11] = "config.txt";
 char log_file_name[13] = "log_file.txt";
 
 FILE *log_file;
